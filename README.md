@@ -1,9 +1,10 @@
-# Recovery Agent — Day 1: Generator
+# Recovery Agent — Days 1–2
 
-Synthetic failed-payment batch for the recovery agent.
+Synthetic failed-payment batch, hidden simulator, and two naive baselines.
 
 ```bash
 python -m generator.generate --n 1000
+python -m eval.run_baselines
 ```
 
 ---
@@ -131,9 +132,51 @@ Keep classes reasonably balanced. If 80% of failures were `insufficient_funds`, 
 
 ---
 
-## Next: Day 2
+## Day 2 — Simulator and baselines
 
-1. `simulator/response.py` — the same mechanism, but for payments where an **action was taken**. Called with `action=None` it must return exactly what `ground_truth.csv` already holds.
-2. Baseline A — fixed retry at 24h, no messaging.
-3. Baseline B — 3 retries at fixed intervals + one generic SMS.
-4. Gate: if baseline recovery is 0% or 95%, something is broken. Fix before Day 3.
+The simulator checks **hidden facts** (downtime end, salary day, annoyance threshold), not strategy names. `schedule_for_payday` is just a debit at a timestamp. `agent/` must never import `simulator/`.
+
+```bash
+python -m eval.run_baselines
+```
+
+**Identity:** `respond(..., actions=[])` looks up `ground_truth.csv`. It does not re-roll. Holds on all 1000 rows.
+
+Control arm is never acted on. Baselines run on the **treatment** arm only (808 payments). Headline = treatment recovery − control recovery.
+
+| | recovery | lift vs control |
+|---|---|---|
+| Control (no contact) | 16.1% | — |
+| **Baseline A** — one retry at 24h, no message | **34.3%** | +18.1 pp |
+| **Baseline B** — generic SMS at 1h, retries at 24h / 72h / 120h | **40.1%** | +24.0 pp |
+
+Gate: neither baseline is 0% or ≥95%. **OK.**
+
+Per class (treatment n; control column is the control-arm slice of that class, so small-n noise is expected):
+
+| class | n | control | A | B |
+|---|---|---|---|---|
+| `technical_downtime` | 117 | 25.8% | 73.5% | 78.6% |
+| `temporary_lockout` | 29 | 50.0% | 72.4% | 89.7% |
+| `session_expiry` | 59 | 31.2% | 67.8% | 74.6% |
+| `customer_input_error` | 121 | 6.9% | 57.0% | 76.0% |
+| `limit_exceeded` | 43 | 55.6% | 55.8% | 67.4% |
+| `insufficient_funds` | 204 | 17.1% | 13.2% | 15.2% |
+| `mandate_failure` | 12 | 0.0% | 8.3% | 8.3% |
+| `issuer_decline` | 127 | 3.1% | 4.7% | 4.7% |
+| `instrument_invalid` | 96 | 0.0% | 3.1% | 3.1% |
+
+What the table is defending:
+
+- A 24h retry beats control on downtime / lockout / session — the blocker is usually gone by then, and the merchant retry replaces “will they bother coming back.”
+- A and B barely move `instrument_invalid` / `issuer_decline` / `mandate_failure`. Same-instrument debit is dead until the customer updates the instrument. **Wasted debits: 235 (A) / 700 (B).** That is the contrast Day 3 has to win.
+- `insufficient_funds` does not improve with a 24h retry — salary usually has not landed. Natural recovery still applies (no messages, so no annoyance). B’s SMS helps only a little.
+- B beats A on classes where a customer-initiated pay can work without a mandate (`customer_input_error`, `session_expiry`). One SMS does not hit `annoyance_threshold` (2–5), so the over-contact penalty is loaded for Day 3, not for this baseline.
+
+The number to beat on Day 3 is **Baseline B at 40.1%**, or more honestly the **+24 pp lift**, with fewer wasted retries.
+
+---
+
+## Next: Day 3
+
+Rule-based agent, nine bounded actions, guardrail gate. Ugly end-to-end is the point. No ML.
