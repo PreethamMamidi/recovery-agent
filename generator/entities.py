@@ -9,7 +9,8 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 import random
 
-from .config import (FailureClass, ERROR_REASONS, METHODS, METHOD_WEIGHTS,
+from .config import (FailureClass, ERROR_REASONS, reason_weights_for,
+                     METHODS, METHOD_WEIGHTS,
                      STRUCTURAL_LIMIT_REASONS, MANDATE_FRACTION)
 
 
@@ -88,7 +89,8 @@ def make_payment(pid: str, cust: CustomerVisible, fc: FailureClass,
     failed_at = period_start + timedelta(
         days=rng.randint(0, 27), hours=rng.randint(0, 23), minutes=rng.randint(0, 59))
 
-    reason = rng.choice(ERROR_REASONS[fc.class_id])
+    reason = rng.choices(ERROR_REASONS[fc.class_id],
+                         weights=reason_weights_for(fc.class_id))[0]
 
     # Mandate presence. mandate_failure is a SETUP failure, so by definition
     # there is no active mandate yet.

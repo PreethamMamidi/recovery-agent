@@ -86,9 +86,9 @@ Default: 20% control.
 The generator prints it on every run:
 
 ```
-natural recovery, control arm : 23.9%
-expected from priors          : 20.2%
-OK  gap 3.7%
+natural recovery, control arm : 16.2%
+expected from priors          : 19.7%
+OK  gap 3.5%
 ```
 
 Control-arm recovery should track the weighted average of the per-class probabilities. A large gap means the simulator has a bug. **Run this before building anything on top.**
@@ -97,19 +97,19 @@ Current output at n=1000:
 
 | class | n | share | natural recovery |
 |---|---|---|---|
-| `technical_downtime` | 129 | 12.9% | 48.8% |
-| `temporary_lockout` | 38 | 3.8% | 34.2% |
-| `limit_exceeded` | 44 | 4.4% | 29.5% |
-| `session_expiry` | 83 | 8.3% | 27.7% |
-| `customer_input_error` | 175 | 17.5% | 23.4% |
-| `insufficient_funds` | 242 | 24.2% | 16.1% |
-| `mandate_failure` | 19 | 1.9% | 15.8% |
-| `issuer_decline` | 148 | 14.8% | 5.4% |
-| `instrument_invalid` | 122 | 12.2% | 4.9% |
+| `technical_downtime` | 148 | 14.8% | 41.2% |
+| `temporary_lockout` | 35 | 3.5% | 37.1% |
+| `limit_exceeded` | 52 | 5.2% | 36.5% |
+| `session_expiry` | 75 | 7.5% | 29.3% |
+| `customer_input_error` | 150 | 15.0% | 14.7% |
+| `insufficient_funds` | 245 | 24.5% | 13.5% |
+| `mandate_failure` | 17 | 1.7% | 5.9% |
+| `issuer_decline` | 159 | 15.9% | 4.4% |
+| `instrument_invalid` | 119 | 11.9% | 2.5% |
 
 The ordering is the thing to defend, not the values. Time-fixes-it at the top, needs-a-real-change at the bottom — arguable from the Razorpay docs alone.
 
-**Note:** `insufficient_funds` lands at 16% rather than the flat 0.35 prior in the taxonomy sheet, because the salary mechanism supersedes the constant. If salary falls outside the 14-day window, the payment mostly doesn't recover on its own. That's the formula disagreeing with the guess — keep the formula, and update the sheet's `base_recovery_prob` column to match what the mechanism actually produces.
+**Note:** `insufficient_funds` lands at 13.5% rather than the flat 0.35 prior in the taxonomy sheet, because the salary mechanism supersedes the constant. If salary falls outside the 14-day window, the payment mostly doesn't recover on its own. That's the formula disagreeing with the guess — keep the formula, and update the sheet's `base_recovery_prob` column to match what the mechanism actually produces.
 
 ---
 
