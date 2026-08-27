@@ -41,10 +41,12 @@ def write_csv(path: Path, rows: list[dict]) -> None:
         w.writerows(rows)
 
 
-def generate(n_payments: int, seed: int = RANDOM_SEED) -> dict:
+def generate(n_payments: int, seed: int = RANDOM_SEED,
+             out_dir: Path | None = None) -> dict:
+    data = Path(out_dir) if out_dir is not None else DATA
     rng = random.Random(seed)
     classes = load_failure_classes()
-    DATA.mkdir(exist_ok=True)
+    data.mkdir(parents=True, exist_ok=True)
 
     class_ids = list(classes)
     weights = [classes[c].gen_weight for c in class_ids]
@@ -89,16 +91,16 @@ def generate(n_payments: int, seed: int = RANDOM_SEED) -> dict:
             "p_natural_used": p_used,
         })
 
-    write_csv(DATA / "payments_visible.csv", pay_vis)
-    write_csv(DATA / "customers_visible.csv", [c.as_row() for c in customers.values()])
-    write_csv(DATA / "payments_hidden.csv", pay_hid)
-    write_csv(DATA / "customers_latent.csv", [l.as_row() for l in latents.values()])
-    write_csv(DATA / "ground_truth.csv", truth)
+    write_csv(data / "payments_visible.csv", pay_vis)
+    write_csv(data / "customers_visible.csv", [c.as_row() for c in customers.values()])
+    write_csv(data / "payments_hidden.csv", pay_hid)
+    write_csv(data / "customers_latent.csv", [l.as_row() for l in latents.values()])
+    write_csv(data / "ground_truth.csv", truth)
 
-    return summarise(truth, pay_vis, classes, n_customers)
+    return summarise(truth, pay_vis, classes, n_customers, data)
 
 
-def summarise(truth, pay_vis, classes, n_customers) -> dict:
+def summarise(truth, pay_vis, classes, n_customers, data: Path | None = None) -> dict:
     by_class = Counter(t["failure_class"] for t in truth)
     control = [t for t in truth if t["arm"] == "control"]
     nat_all = sum(t["would_have_recovered_naturally"] for t in truth) / len(truth)
@@ -133,7 +135,8 @@ def summarise(truth, pay_vis, classes, n_customers) -> dict:
         "mandate_share": round(sum(p["has_active_mandate"] for p in pay_vis) / len(pay_vis), 4),
         "per_class": per_class,
     }
-    (DATA / "generation_summary.json").write_text(json.dumps(summary, indent=2))
+    out = data if data is not None else DATA
+    (out / "generation_summary.json").write_text(json.dumps(summary, indent=2))
     return summary
 
 
@@ -141,9 +144,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=1000)
     ap.add_argument("--seed", type=int, default=RANDOM_SEED)
+    ap.add_argument("--out", type=str, default=None,
+                    help="Output directory (default: data/)")
     args = ap.parse_args()
 
-    s = generate(args.n, args.seed)
+    s = generate(args.n, args.seed, Path(args.out) if args.out else None)
 
     print(f"\n  {s['n_payments']} payments · {s['n_customers']} customers "
           f"· window {s['measurement_window_days']}d")

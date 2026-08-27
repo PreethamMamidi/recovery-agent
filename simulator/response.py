@@ -53,7 +53,15 @@ class Outcome:
     annoyed: bool
     debit_attempts: int
     wasted_debits: int
+    messages_sms: int = 0
+    messages_whatsapp: int = 0
+    messages_email: int = 0
+    opted_out_triggered: bool = False
     log: list = field(default_factory=list)
+
+    @property
+    def messages_total(self) -> int:
+        return self.messages_sms + self.messages_whatsapp + self.messages_email
 
 
 @dataclass
@@ -63,6 +71,7 @@ class _State:
     mandate_reauthed: bool = False
     contacts: int = 0
     opted_out: bool = False
+    started_opted_out: bool = False
     annoyed: bool = False
     recovered: bool = False
     recovered_at: datetime | None = None
@@ -70,7 +79,14 @@ class _State:
     debit_attempts: int = 0
     wasted_debits: int = 0
     stopped: bool = False
+    messages_sms: int = 0
+    messages_whatsapp: int = 0
+    messages_email: int = 0
     log: list = field(default_factory=list)
+
+    @property
+    def opted_out_triggered(self) -> bool:
+        return self.opted_out and not self.started_opted_out
 
 
 def _rng_for(payment_id: str) -> random.Random:
@@ -198,10 +214,20 @@ def _convert(state: _State, latents: CustomerLatents, rng: random.Random,
     return rng.random() < max(0.0, min(1.0, p))
 
 
+def _count_message(state: _State, channel: str) -> None:
+    if channel == "whatsapp":
+        state.messages_whatsapp += 1
+    elif channel == "email":
+        state.messages_email += 1
+    else:
+        state.messages_sms += 1
+
+
 def _deliver_message(state: _State, latents: CustomerLatents, channel: str,
                      rng: random.Random) -> bool:
     """Increment contacts. Return True if the customer picked up."""
     state.contacts += 1
+    _count_message(state, channel)
     if state.contacts > latents.annoyance_threshold:
         state.annoyed = True
         if rng.random() < 0.5:
@@ -338,6 +364,7 @@ def respond(
     state = _State(
         has_mandate=bool(vis.has_active_mandate),
         opted_out=opted_out,
+        started_opted_out=opted_out,
     )
 
     events = [a for a in actions
@@ -363,5 +390,9 @@ def respond(
         annoyed=state.annoyed,
         debit_attempts=state.debit_attempts,
         wasted_debits=state.wasted_debits,
+        messages_sms=state.messages_sms,
+        messages_whatsapp=state.messages_whatsapp,
+        messages_email=state.messages_email,
+        opted_out_triggered=state.opted_out_triggered,
         log=state.log,
     )

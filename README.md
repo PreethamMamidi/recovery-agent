@@ -1,10 +1,12 @@
-# Recovery Agent — Days 1–2
+# Recovery Agent — Days 1–3
 
-Synthetic failed-payment batch, hidden simulator, and two naive baselines.
+Synthetic failed-payment batch, hidden simulator, naive baselines, and a bounded rule-based agent.
 
 ```bash
 python -m generator.generate --n 1000
 python -m eval.run_baselines
+python -m eval.run_agent
+python -m unittest tests.test_day3
 ```
 
 ---
@@ -138,45 +140,74 @@ The simulator checks **hidden facts** (downtime end, salary day, annoyance thres
 
 ```bash
 python -m eval.run_baselines
+python -m eval.check_seeds
 ```
 
 **Identity:** `respond(..., actions=[])` looks up `ground_truth.csv`. It does not re-roll. Holds on all 1000 rows.
 
-Control arm is never acted on. Baselines run on the **treatment** arm only (808 payments). Headline = treatment recovery − control recovery.
+**Headline lift** uses the randomized control arm (n=192). **Per-class diagnostics** use each treatment row's own `would_have_recovered_naturally` (same n as A/B/C). Those are different samples; do not mix them.
 
-| | recovery | lift vs control |
-|---|---|---|
-| Control (no contact) | 16.1% | — |
-| **Baseline A** — one retry at 24h, no message | **34.3%** | +18.1 pp |
-| **Baseline B** — generic SMS at 1h, retries at 24h / 72h / 120h | **40.1%** | +24.0 pp |
+Costs (fixed in `config/costs.py` before seeing results): Rs 2 / debit, Rs 0.20 / SMS, Rs 1 / WhatsApp, Rs 0.05 / email, opt-out = 30% of LTV.
 
-Gate: neither baseline is 0% or ≥95%. **OK.**
+| | rec | lift vs control | wasted | msgs | opt-outs | net Rs |
+|---|---|---|---|---|---|---|
+| Control (no contact) | 16.1% | - | 0 | 0 | 0 | 198,314 |
+| **A** — retry at 24h | 34.3% | +18.1 pp | 235 | 0 | 0 | 1,312,711 |
+| **B** — SMS + 3 retries | **40.1%** | +24.0 pp | 700 | 808 | 0 | **1,470,786** |
+| **C** — 5 SMS + retries | 40.1% | +24.0 pp | 936 | 2990 | **298** | 204,159 |
 
-Per class (treatment n; control column is the control-arm slice of that class, so small-n noise is expected):
+C matches B on recovery and destroys net value. The annoyance penalty is real; A/B never reached it (one SMS < threshold 2–5).
 
-| class | n | control | A | B |
-|---|---|---|---|---|
-| `technical_downtime` | 117 | 25.8% | 73.5% | 78.6% |
-| `temporary_lockout` | 29 | 50.0% | 72.4% | 89.7% |
-| `session_expiry` | 59 | 31.2% | 67.8% | 74.6% |
-| `customer_input_error` | 121 | 6.9% | 57.0% | 76.0% |
-| `limit_exceeded` | 43 | 55.6% | 55.8% | 67.4% |
-| `insufficient_funds` | 204 | 17.1% | 13.2% | 15.2% |
-| `mandate_failure` | 12 | 0.0% | 8.3% | 8.3% |
-| `issuer_decline` | 127 | 3.1% | 4.7% | 4.7% |
-| `instrument_invalid` | 96 | 0.0% | 3.1% | 3.1% |
+Per class on **treatment** rows (natural = same-row ground truth, not the thin control slice):
 
-What the table is defending:
+| class | n | natural | A | B | C |
+|---|---|---|---|---|---|
+| `technical_downtime` | 117 | 45.3% | 73.5% | 78.6% | 80.3% |
+| `temporary_lockout` | 29 | 34.5% | 72.4% | 89.7% | 89.7% |
+| `session_expiry` | 59 | 28.8% | 67.8% | 74.6% | 78.0% |
+| `customer_input_error` | 121 | 16.5% | 57.0% | 76.0% | 76.9% |
+| `limit_exceeded` | 43 | 32.6% | 55.8% | 67.4% | 67.4% |
+| `insufficient_funds` | 204 | 12.7% | 13.2% | 15.2% | 14.2% |
+| `mandate_failure` | 12 | 8.3% | 8.3% | 8.3% | 0.0% |
+| `issuer_decline` | 127 | 4.7% | 4.7% | 4.7% | 3.9% |
+| `instrument_invalid` | 96 | 3.1% | 3.1% | 3.1% | 2.1% |
 
-- A 24h retry beats control on downtime / lockout / session — the blocker is usually gone by then, and the merchant retry replaces “will they bother coming back.”
-- A and B barely move `instrument_invalid` / `issuer_decline` / `mandate_failure`. Same-instrument debit is dead until the customer updates the instrument. **Wasted debits: 235 (A) / 700 (B).** That is the contrast Day 3 has to win.
-- `insufficient_funds` does not improve with a 24h retry — salary usually has not landed. Natural recovery still applies (no messages, so no annoyance). B’s SMS helps only a little.
-- B beats A on classes where a customer-initiated pay can work without a mandate (`customer_input_error`, `session_expiry`). One SMS does not hit `annoyance_threshold` (2–5), so the over-contact penalty is loaded for Day 3, not for this baseline.
-
-The number to beat on Day 3 is **Baseline B at 40.1%**, or more honestly the **+24 pp lift**, with fewer wasted retries.
+`insufficient_funds` looking worse than the *control slice* (17.1% on ~40 rows) was sampling noise. Five other seeds: B sits at or above both the control slice and same-row natural. A failed 24h debit is a no-op on the payday path.
 
 ---
 
-## Next: Day 3
+## Day 3 — Rule-based agent
 
-Rule-based agent, nine bounded actions, guardrail gate. Ugly end-to-end is the point. No ML.
+Diagnose from `error_reason` (74-way lookup, unknown raises). Nine bounded actions. Guardrails reject; they never execute. Policy does not import `simulator/`, `generator.latents`, or `generator.natural_recovery`.
+
+```bash
+python -m eval.run_agent
+```
+
+| | rec | lift | wasted | msgs | opt-outs | net Rs |
+|---|---|---|---|---|---|---|
+| Control | 16.1% | - | 0 | 0 | 0 | 198,314 |
+| B | **40.1%** | +24.0 pp | 700 | 808 | 0 | **1,470,786** |
+| **Agent** | 33.4% | +17.3 pp | **0** | **396** | 0 | 994,580 |
+
+Recovery is below B. The Day 3 win is efficiency: **zero wasted debits** (from 700), **half the messages**, **zero downtime messages**, 202 gate rejections in `audit/log.db`.
+
+Where the taxonomy actually changes the action:
+
+| class | n | B | agent | what changed |
+|---|---|---|---|---|
+| `instrument_invalid` | 96 | 3.1% | **18.8%** | update request, no debit |
+| `mandate_failure` | 12 | 8.3% | **25.0%** | reauth, mandate gate demo |
+| `insufficient_funds` | 204 | 15.2% | **17.6%** | payday heuristic (1st/7th), not `salary_day` |
+| `technical_downtime` | 117 | 78.6% | 73.5% | wait then retry, no SMS |
+| `customer_input_error` | 121 | 76.0% | 31.4% | link only; B also sprays retries |
+
+`insufficient_funds` at 17.6% is not a leak (gate would fire above 45%).
+
+Example gate rejection (`PAY_00003`): no mandate → `schedule_for_payday` rejected → fallback `send_payment_link`.
+
+---
+
+## Next: Day 4
+
+Formalise lift, wasted-attempt reporting, and net-value slides. ML is Day 5. Dashboard is Day 6.
