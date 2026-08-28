@@ -89,30 +89,30 @@ Default: 20% control.
 The generator prints it on every run:
 
 ```
-natural recovery, control arm : 16.2%
-expected from priors          : 19.7%
-OK  gap 3.5%
+natural recovery, control arm : 20.9%
+expected from priors          : 20.1%
+OK  gap 0.8%
 ```
 
 Control-arm recovery should track the weighted average of the per-class probabilities. A large gap means the simulator has a bug. **Run this before building anything on top.**
 
-Current output at n=1000:
+Current output at n=1000 (seed 42, `data/generation_summary.json`):
 
 | class | n | share | natural recovery |
 |---|---|---|---|
-| `technical_downtime` | 148 | 14.8% | 41.2% |
-| `temporary_lockout` | 35 | 3.5% | 37.1% |
-| `limit_exceeded` | 52 | 5.2% | 36.5% |
-| `session_expiry` | 75 | 7.5% | 29.3% |
-| `customer_input_error` | 150 | 15.0% | 14.7% |
-| `insufficient_funds` | 245 | 24.5% | 13.5% |
-| `mandate_failure` | 17 | 1.7% | 5.9% |
-| `issuer_decline` | 159 | 15.9% | 4.4% |
-| `instrument_invalid` | 119 | 11.9% | 2.5% |
+| `technical_downtime` | 143 | 14.3% | 45.5% |
+| `temporary_lockout` | 33 | 3.3% | 51.5% |
+| `limit_exceeded` | 52 | 5.2% | 28.9% |
+| `session_expiry` | 91 | 9.1% | 22.0% |
+| `insufficient_funds` | 243 | 24.3% | 20.2% |
+| `customer_input_error` | 156 | 15.6% | 18.6% |
+| `mandate_failure` | 15 | 1.5% | 13.3% |
+| `issuer_decline` | 163 | 16.3% | 11.7% |
+| `instrument_invalid` | 104 | 10.4% | 1.0% |
 
 The ordering is the thing to defend, not the values. Time-fixes-it at the top, needs-a-real-change at the bottom — arguable from the Razorpay docs alone.
 
-**Note:** `insufficient_funds` lands at 13.5% rather than the flat 0.35 prior in the taxonomy sheet, because the salary mechanism supersedes the constant. If salary falls outside the 14-day window, the payment mostly doesn't recover on its own. That's the formula disagreeing with the guess — keep the formula, and update the sheet's `base_recovery_prob` column to match what the mechanism actually produces.
+**Note:** `insufficient_funds` lands at 20.2% rather than the flat 0.35 prior in the taxonomy sheet, because the salary mechanism supersedes the constant. If salary falls outside the 14-day window, the payment mostly doesn't recover on its own. That's the formula disagreeing with the guess — keep the formula, and update the sheet's `base_recovery_prob` column to match what the mechanism actually produces.
 
 ---
 
@@ -145,16 +145,18 @@ python -m eval.check_seeds
 
 **Identity:** `respond(..., actions=[])` looks up `ground_truth.csv`. It does not re-roll. Holds on all 1000 rows.
 
-**Headline lift** uses the randomized control arm (n=192). **Per-class diagnostics** use each treatment row's own `would_have_recovered_naturally` (same n as A/B/C). Those are different samples; do not mix them.
+**Headline lift** uses the randomized control arm (n=187). **Per-class diagnostics** use each treatment row's own `would_have_recovered_naturally` (same n as A/B/C). Those are different samples; do not mix them. Control net is gross recovered (zero costs); rupee figures on that arm are noisy — headline is recovery-rate lift.
 
 Costs (fixed in `config/costs.py` before seeing results): Rs 2 / debit, Rs 0.20 / SMS, Rs 1 / WhatsApp, Rs 0.05 / email, opt-out = 30% of LTV.
 
-| | rec | lift vs control | wasted | msgs | opt-outs | net Rs |
-|---|---|---|---|---|---|---|
-| Control (no contact) | 16.1% | - | 0 | 0 | 0 | 198,314 |
-| **A** — retry at 24h | 34.3% | +18.1 pp | 235 | 0 | 0 | 1,312,711 |
-| **B** — SMS + 3 retries | **40.1%** | +24.0 pp | 700 | 808 | 0 | **1,470,786** |
-| **C** — 5 SMS + retries | 40.1% | +24.0 pp | 936 | 2990 | **298** | 204,159 |
+Canonical batch: seed 42, treatment n=813, `results_after_fix7.json`.
+
+| | rec | lift vs control | wasted | imposs | msgs | opt-outs | net Rs |
+|---|---|---|---|---|---|---|---|
+| Control (no contact) | 20.9% | - | 0 | 0 | 0 | 0 | 77,878 |
+| **A** — retry at 24h | 26.8% | +6.0 pp | 142 | 417 | 0 | 0 | 1,072,537 |
+| **B** — SMS + 3 retries | 32.5% | +11.6 pp | 426 | 1,094 | 813 | 0 | 1,377,187 |
+| **C** — 5 SMS + retries | 32.2% | +11.4 pp | 569 | 1,427 | 3,297 | **329** | 85,761 |
 
 C matches B on recovery and destroys net value. The annoyance penalty is real; A/B never reached it (one SMS < threshold 2–5).
 
@@ -162,17 +164,17 @@ Per class on **treatment** rows (natural = same-row ground truth, not the thin c
 
 | class | n | natural | A | B | C |
 |---|---|---|---|---|---|
-| `technical_downtime` | 117 | 45.3% | 73.5% | 78.6% | 80.3% |
-| `temporary_lockout` | 29 | 34.5% | 72.4% | 89.7% | 89.7% |
-| `session_expiry` | 59 | 28.8% | 67.8% | 74.6% | 78.0% |
-| `customer_input_error` | 121 | 16.5% | 57.0% | 76.0% | 76.9% |
-| `limit_exceeded` | 43 | 32.6% | 55.8% | 67.4% | 67.4% |
-| `insufficient_funds` | 204 | 12.7% | 13.2% | 15.2% | 14.2% |
-| `mandate_failure` | 12 | 8.3% | 8.3% | 8.3% | 0.0% |
-| `issuer_decline` | 127 | 4.7% | 4.7% | 4.7% | 3.9% |
-| `instrument_invalid` | 96 | 3.1% | 3.1% | 3.1% | 2.1% |
+| `technical_downtime` | 115 | 46.1% | 73.9% | 77.4% | 84.3% |
+| `temporary_lockout` | 27 | 51.9% | 55.6% | 59.3% | 48.1% |
+| `limit_exceeded` | 42 | 28.6% | 50.0% | 59.5% | 61.9% |
+| `session_expiry` | 66 | 24.2% | 21.2% | 34.8% | 34.8% |
+| `customer_input_error` | 122 | 19.7% | 21.3% | 40.2% | 48.4% |
+| `insufficient_funds` | 198 | 20.2% | 19.2% | 21.7% | 16.7% |
+| `mandate_failure` | 14 | 14.3% | 14.3% | 14.3% | 7.1% |
+| `issuer_decline` | 138 | 11.6% | 11.6% | 11.6% | 6.5% |
+| `instrument_invalid` | 91 | 1.1% | 1.1% | 1.1% | 1.1% |
 
-`insufficient_funds` looking worse than the *control slice* (17.1% on ~40 rows) was sampling noise. Five other seeds: B sits at or above both the control slice and same-row natural. A failed 24h debit is a no-op on the payday path.
+`insufficient_funds` vs the *control slice* is sampling noise. Five other seeds: agent NSF sits above same-row natural every time, and below the 45% leak tripwire. A failed 24h debit is a no-op on the payday path.
 
 ---
 
@@ -184,27 +186,36 @@ Diagnose from `error_reason` (74-way lookup, unknown raises). Nine bounded actio
 python -m eval.run_agent
 ```
 
-| | rec | lift | wasted | msgs | opt-outs | net Rs |
-|---|---|---|---|---|---|---|
-| Control | 16.1% | - | 0 | 0 | 0 | 198,314 |
-| B | **40.1%** | +24.0 pp | 700 | 808 | 0 | **1,470,786** |
-| **Agent** | 33.4% | +17.3 pp | **0** | **396** | 0 | 994,580 |
+| | rec | lift | wasted | imposs | msgs | m/rec | opt-outs | net Rs |
+|---|---|---|---|---|---|---|---|---|
+| Control | 20.9% | - | 0 | 0 | 0 | 0 | 0 | 77,878 |
+| B | 32.5% | +11.6 pp | 426 | 1,094 | 813 | 3.08 | 0 | 1,377,187 |
+| **Agent** | **38.6%** | **+17.8 pp** | **0** | **0** | **639** | **2.04** | 0 | **1,564,615** |
 
-Recovery is below B. The Day 3 win is efficiency: **zero wasted debits** (from 700), **half the messages**, **zero downtime messages**, 202 gate rejections in `audit/log.db`.
+Agent beats B on recovery and on efficiency. Zero wasted debits, zero impossible debits, **zero downtime-with-mandate messages**, 27 gate rejections, 46 high-value rows flagged for review (policy still runs).
+
+Messages: agent 639 vs B 813. Messages per recovery **2.04 vs 3.08** — both recovery and the ratio moved up from the pre-follow-up snapshot (591 / 1.93 at 37.8%), because the session 6h second ask converts and costs a send. The restraint claim is not “fewest messages”; it is no messages where they don’t help. Channel mix (preferred_channel, not a spray): 256 SMS / 312 WhatsApp / 71 email. B is 813 SMS. WhatsApp is ₹1 vs SMS ₹0.20; agent message cost is ₹367 vs B’s ₹163, more than covered by extra recoveries (net ₹1.56M vs ₹1.38M; Fix 7 vs Fix 6 net +₹8k on +48 sends).
 
 Where the taxonomy actually changes the action:
 
 | class | n | B | agent | what changed |
 |---|---|---|---|---|
-| `instrument_invalid` | 96 | 3.1% | **18.8%** | update request, no debit |
-| `mandate_failure` | 12 | 8.3% | **25.0%** | reauth, mandate gate demo |
-| `insufficient_funds` | 204 | 15.2% | **17.6%** | payday heuristic (1st/7th), not `salary_day` |
-| `technical_downtime` | 117 | 78.6% | 73.5% | wait then retry, no SMS |
-| `customer_input_error` | 121 | 76.0% | 31.4% | link only; B also sprays retries |
+| `instrument_invalid` | 91 | 1.1% | **13.2%** | update request, no debit |
+| `mandate_failure` | 14 | 14.3% | **35.7%** | reauth, mandate gate demo |
+| `insufficient_funds` | 198 | 21.7% | **29.3%** | nearest 1st/7th/15th (not `salary_day`) |
+| `technical_downtime` | 115 | 77.4% | **86.1%** | wait then backoff; no SMS if mandate |
+| `temporary_lockout` | 27 | 59.3% | **81.5%** | exponential 2h/8h/32h |
+| `session_expiry` | 66 | 34.8% | **43.9%** | immediate then 6h (holds on 5/5 seeds) |
+| `customer_input_error` | 122 | 40.2% | 41.0% | link only; B also sprays retries |
+| `limit_exceeded` | 42 | **59.5%** | 54.8% | 00:30 ladder; B’s 24/72/120h still leads |
 
-`insufficient_funds` at 17.6% is not a leak (gate would fire above 45%).
+B still leads on `limit_exceeded` (59.5% vs 54.8% on 42 payments). Its 24/72/120h retries catch daily-cap resets the two-step 00:30 ladder misses. Matching it is possible; schedule-tuning stops here.
 
-Example gate rejection (`PAY_00003`): no mandate → `schedule_for_payday` rejected → fallback `send_payment_link`.
+`insufficient_funds` at 29.3% is not a leak (gate would fire above 45%; five unseen seeds stay well under).
+
+Our schedules encode two stated priors — Indian salaries cluster at month-start, and issuer lockout windows are undocumented so backoff beats a fixed wait. Both hold across five unseen seeds, and we deliberately did not tune to the simulator's actual window bounds. The residual risk is that we've had several iterations on this data and the baselines have had none; on real data we'd expect the gap to narrow.
+
+Example gate rejection (`PAY_00071`): opted-out NSF → `retry_debit` rejected → `mark_uncollectible`.
 
 ---
 

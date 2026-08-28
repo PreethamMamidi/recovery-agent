@@ -58,14 +58,14 @@ def _safe_fallback(vis, customer: dict, diagnosed_class: str,
     if ch not in {"sms", "whatsapp", "email"}:
         ch = "sms"
     if ctx.opted_out:
+        if vis.amount >= VALUE_ESCALATE_INR:
+            return decision("escalate", reason="opted_out_high_value")
         return decision("mark_uncollectible", reason="opted_out")
     if original.action in TERMINAL:
         return original
-    if vis.amount >= VALUE_ESCALATE_INR:
-        return decision("escalate", reason="value_threshold")
     fc = load_failure_classes()[diagnosed_class]
     if ctx.attempt_number >= fc.max_attempts:
-        return decision("mark_uncollectible", reason="attempt_budget")
+        return decision("escalate", reason="attempt_budget")
     # Downtime / lockout: do not message a blameless customer.
     if diagnosed_class in {"technical_downtime", "temporary_lockout"}:
         return decision("wait_for_downtime_recovery", recheck_hours=6)
@@ -81,16 +81,18 @@ def check(vis, customer: dict, diagnosed_class: str, planned: Decision,
           ctx: RunContext, at: datetime) -> GateResult:
     fc = load_failure_classes()[diagnosed_class]
 
-    if vis.amount >= VALUE_ESCALATE_INR and planned.action not in TERMINAL:
-        fb = decision("escalate", reason="value_threshold")
-        return GateResult(False, "value_threshold", fb, planned)
-
+    # High value is an audit flag, not a freeze. Only abandon automation
+    # when a human genuinely has to take over (opt-out + large balance,
+    # or the attempt budget is exhausted).
     if ctx.opted_out and planned.action not in TERMINAL:
+        if vis.amount >= VALUE_ESCALATE_INR:
+            fb = decision("escalate", reason="opted_out_high_value")
+            return GateResult(False, "opted_out_high_value", fb, planned)
         fb = decision("mark_uncollectible", reason="opted_out")
         return GateResult(False, "opted_out", fb, planned)
 
     if ctx.attempt_number >= fc.max_attempts and planned.action not in TERMINAL:
-        fb = decision("mark_uncollectible", reason="attempt_budget")
+        fb = decision("escalate", reason="attempt_budget")
         return GateResult(False, "attempt_budget", fb, planned)
 
     if planned.action in AUTONOMOUS_NEED_MANDATE and not vis.has_active_mandate:

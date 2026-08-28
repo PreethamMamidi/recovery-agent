@@ -34,17 +34,20 @@ def _print_headline(ctl, *policies) -> None:
           f"  (randomized arm - headline only)")
     print()
     print(f"  {'policy':<28}{'n':>6}{'rec':>8}{'lift':>8}{'wasted':>8}"
-          f"{'msgs':>7}{'m/rec':>8}{'optout':>8}{'net Rs':>12}")
-    print("  " + "-" * 93)
+          f"{'imposs':>8}{'msgs':>7}{'m/rec':>8}{'optout':>8}{'net Rs':>12}")
+    print("  " + "-" * 101)
     print(f"  {'control':<28}{ctl.n:>6}{ctl.recovery_rate:>8.1%}"
-          f"{'-':>8}{0:>8}{0:>7}{0:>8}{0:>8}{ctl.net_value:>12,.0f}")
+          f"{'-':>8}{0:>8}{0:>8}{0:>7}{0:>8}{0:>8}{ctl.net_value:>12,.0f}")
     for p in policies:
         lift = p.recovery_rate - ctl.recovery_rate
         print(f"  {p.name:<28}{p.n:>6}{p.recovery_rate:>8.1%}"
-              f"{lift:>+8.1%}{p.wasted_debits:>8}{p.messages:>7}"
+              f"{lift:>+8.1%}{p.wasted_debits:>8}{p.impossible_debits:>8}"
+              f"{p.messages:>7}"
               f"{p.messages_per_recovery:>8.2f}{p.opted_out_triggered:>8}"
               f"{p.net_value:>12,.0f}")
-    print("  " + "-" * 93)
+    print("  " + "-" * 101)
+    print(f"  control net = gross recovered (zero costs), n={ctl.n}; "
+          f"rupee figures on this arm are noisy — headline is recovery-rate lift")
 
 
 def _print_per_class(classes, *policies) -> None:
@@ -67,16 +70,18 @@ def _print_per_class(classes, *policies) -> None:
         print(f"  {cid:<22}{n:>5}{nat:>9.1%}{cells}")
     print("  " + "-" * len(header))
 
-    print("\n  per-class wasted debits / messages / opt-outs (treatment)")
-    print(f"  {'class':<22}" + "".join(f"{nm[:8]:>9}{'msg':>6}{'oo':>5}" for nm in names))
-    print("  " + "-" * (22 + 20 * len(names)))
+    print("\n  per-class wasted / impossible debits / messages / opt-outs (treatment)")
+    print(f"  {'class':<22}" + "".join(
+        f"{nm[:8]:>8}{'imp':>6}{'msg':>6}{'oo':>5}" for nm in names))
+    print("  " + "-" * (22 + 25 * len(names)))
     for cid in classes:
         if cid not in policies[0].by_class:
             continue
         line = f"  {cid:<22}"
         for p in policies:
             b = p.by_class.get(cid, {})
-            line += f"{b.get('wasted', 0):>9}{b.get('messages', 0):>6}{b.get('opt_outs', 0):>5}"
+            line += (f"{b.get('wasted', 0):>8}{b.get('impossible', 0):>6}"
+                     f"{b.get('messages', 0):>6}{b.get('opt_outs', 0):>5}")
         print(line)
 
 

@@ -11,7 +11,8 @@ import random
 
 from .config import (FailureClass, ERROR_REASONS, reason_weights_for,
                      METHODS, METHOD_WEIGHTS,
-                     STRUCTURAL_LIMIT_REASONS, MANDATE_FRACTION)
+                     STRUCTURAL_LIMIT_REASONS)
+from .presence import assign_mandate
 
 
 # --------------------------------------------------------------- customers
@@ -92,17 +93,14 @@ def make_payment(pid: str, cust: CustomerVisible, fc: FailureClass,
     reason = rng.choices(ERROR_REASONS[fc.class_id],
                          weights=reason_weights_for(fc.class_id))[0]
 
-    # Mandate presence. mandate_failure is a SETUP failure, so by definition
-    # there is no active mandate yet.
-    if fc.class_id == "mandate_failure":
-        has_mandate = False
-    else:
-        has_mandate = rng.random() < MANDATE_FRACTION
-
     amount = int(rng.choices(
         [rng.randint(99, 500), rng.randint(500, 2500),
          rng.randint(2500, 10000), rng.randint(10000, 60000)],
         [0.30, 0.40, 0.22, 0.08])[0])
+
+    # Presence is a property of the reason code, not the class.
+    # Reason and amount are both drawn first (AFA needs the amount).
+    has_mandate = assign_mandate(reason, amount, rng)
 
     # ---- hidden mechanism -------------------------------------------------
     downtime_ends = lockout_ends = limit_resets = None

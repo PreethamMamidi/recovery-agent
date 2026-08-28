@@ -53,6 +53,7 @@ class Outcome:
     annoyed: bool
     debit_attempts: int
     wasted_debits: int
+    impossible_debits: int = 0
     messages_sms: int = 0
     messages_whatsapp: int = 0
     messages_email: int = 0
@@ -78,6 +79,7 @@ class _State:
     source: str = "none"
     debit_attempts: int = 0
     wasted_debits: int = 0
+    impossible_debits: int = 0
     stopped: bool = False
     messages_sms: int = 0
     messages_whatsapp: int = 0
@@ -246,12 +248,11 @@ def _mark_recovered(state: _State, at: datetime, source: str) -> None:
 
 
 def _try_debit(vis, hid, latents, fc, at, state, rng) -> bool:
+    """Attempt a debit that the world can actually send (mandate already checked)."""
     state.debit_attempts += 1
     if fc.retry_viable == "never":
         state.wasted_debits += 1
     if state.opted_out:
-        return False
-    if not (state.has_mandate or state.instrument_replaced or state.mandate_reauthed):
         return False
     if not _blocker_gone(vis, hid, latents, fc, at, state, rng):
         return False
@@ -290,6 +291,17 @@ def _apply_action(action: Action, vis, hid, latents, fc, state, rng) -> None:
         return
 
     if name in DEBIT_ACTIONS:
+        # No stored authorisation → the debit is never sent. Not an attempt,
+        # not a failure, not a ₹2 cost. Distinct from wasted_debits.
+        if not state.has_mandate:
+            state.impossible_debits += 1
+            state.log.append({
+                "at": at.isoformat(),
+                "action": name,
+                "ok": False,
+                "impossible": True,
+            })
+            return
         ok = _try_debit(vis, hid, latents, fc, at, state, rng)
         state.log.append({"at": at.isoformat(), "action": name, "ok": ok})
         if ok:
@@ -355,6 +367,7 @@ def respond(
             annoyed=False,
             debit_attempts=0,
             wasted_debits=0,
+            impossible_debits=0,
         )
 
     failed_at = datetime.fromisoformat(vis.failed_at)
@@ -390,6 +403,7 @@ def respond(
         annoyed=state.annoyed,
         debit_attempts=state.debit_attempts,
         wasted_debits=state.wasted_debits,
+        impossible_debits=state.impossible_debits,
         messages_sms=state.messages_sms,
         messages_whatsapp=state.messages_whatsapp,
         messages_email=state.messages_email,

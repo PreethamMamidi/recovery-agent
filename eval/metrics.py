@@ -57,6 +57,7 @@ class RowScore:
     natural: bool
     debit_attempts: int
     wasted_debits: int
+    impossible_debits: int
     messages: int
     messages_sms: int
     messages_whatsapp: int
@@ -75,7 +76,11 @@ class PolicyTotals:
     natural: int = 0
     debit_attempts: int = 0
     wasted_debits: int = 0
+    impossible_debits: int = 0
     messages: int = 0
+    messages_sms: int = 0
+    messages_whatsapp: int = 0
+    messages_email: int = 0
     opted_out_triggered: int = 0
     recovered_rupees: float = 0.0
     cost: float = 0.0
@@ -98,7 +103,7 @@ class PolicyTotals:
 def _empty_class() -> dict:
     return {
         "n": 0, "recovered": 0, "natural": 0,
-        "wasted": 0, "messages": 0, "opt_outs": 0,
+        "wasted": 0, "impossible": 0, "messages": 0, "opt_outs": 0,
         "net_value": 0.0,
     }
 
@@ -121,6 +126,7 @@ def score_outcome(vis, customer: dict, truth: dict, out: Outcome) -> RowScore:
         natural=natural,
         debit_attempts=out.debit_attempts,
         wasted_debits=out.wasted_debits,
+        impossible_debits=out.impossible_debits,
         messages=out.messages_total,
         messages_sms=out.messages_sms,
         messages_whatsapp=out.messages_whatsapp,
@@ -138,7 +144,11 @@ def add_row(totals: PolicyTotals, row: RowScore) -> None:
     totals.natural += int(row.natural)
     totals.debit_attempts += row.debit_attempts
     totals.wasted_debits += row.wasted_debits
+    totals.impossible_debits += row.impossible_debits
     totals.messages += row.messages
+    totals.messages_sms += row.messages_sms
+    totals.messages_whatsapp += row.messages_whatsapp
+    totals.messages_email += row.messages_email
     totals.opted_out_triggered += int(row.opted_out_triggered)
     totals.recovered_rupees += row.recovered_rupees
     totals.cost += row.cost
@@ -148,6 +158,7 @@ def add_row(totals: PolicyTotals, row: RowScore) -> None:
     bucket["recovered"] += int(row.recovered)
     bucket["natural"] += int(row.natural)
     bucket["wasted"] += row.wasted_debits
+    bucket["impossible"] += row.impossible_debits
     bucket["messages"] += row.messages
     bucket["opt_outs"] += int(row.opted_out_triggered)
     bucket["net_value"] += row.net_value

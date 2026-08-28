@@ -2,65 +2,65 @@
   "n_payments": 1000,
   "n_customers": 750,
   "measurement_window_days": 14,
-  "control_n": 192,
-  "treatment_n": 808,
-  "natural_recovery_all": 0.181,
-  "natural_recovery_control_arm": 0.1615,
-  "expected_from_priors": 0.1968,
-  "mandate_share": 0.685,
+  "control_n": 187,
+  "treatment_n": 813,
+  "natural_recovery_all": 0.217,
+  "natural_recovery_control_arm": 0.2086,
+  "expected_from_priors": 0.2008,
+  "mandate_share": 0.478,
   "per_class": {
     "technical_downtime": {
-      "n": 148,
-      "share": 0.148,
-      "natural_recovery": 0.4122,
-      "mean_p": 0.4544
+      "n": 143,
+      "share": 0.143,
+      "natural_recovery": 0.4545,
+      "mean_p": 0.4564
     },
     "temporary_lockout": {
-      "n": 35,
-      "share": 0.035,
-      "natural_recovery": 0.3714,
-      "mean_p": 0.4236
+      "n": 33,
+      "share": 0.033,
+      "natural_recovery": 0.5152,
+      "mean_p": 0.4456
     },
     "limit_exceeded": {
       "n": 52,
       "share": 0.052,
-      "natural_recovery": 0.3654,
-      "mean_p": 0.2925
+      "natural_recovery": 0.2885,
+      "mean_p": 0.2915
     },
     "insufficient_funds": {
-      "n": 245,
-      "share": 0.245,
-      "natural_recovery": 0.1347,
-      "mean_p": 0.1496
+      "n": 243,
+      "share": 0.243,
+      "natural_recovery": 0.2016,
+      "mean_p": 0.1613
     },
     "session_expiry": {
-      "n": 75,
-      "share": 0.075,
-      "natural_recovery": 0.2933,
-      "mean_p": 0.2209
+      "n": 91,
+      "share": 0.091,
+      "natural_recovery": 0.2198,
+      "mean_p": 0.2151
     },
     "customer_input_error": {
-      "n": 150,
-      "share": 0.15,
-      "natural_recovery": 0.1467,
-      "mean_p": 0.2056
+      "n": 156,
+      "share": 0.156,
+      "natural_recovery": 0.1859,
+      "mean_p": 0.2076
     },
     "mandate_failure": {
-      "n": 17,
-      "share": 0.017,
-      "natural_recovery": 0.0588,
-      "mean_p": 0.0841
+      "n": 15,
+      "share": 0.015,
+      "natural_recovery": 0.1333,
+      "mean_p": 0.0774
     },
     "issuer_decline": {
-      "n": 159,
-      "share": 0.159,
-      "natural_recovery": 0.044,
-      "mean_p": 0.0715
+      "n": 163,
+      "share": 0.163,
+      "natural_recovery": 0.1166,
+      "mean_p": 0.0745
     },
     "instrument_invalid": {
-      "n": 119,
-      "share": 0.119,
-      "natural_recovery": 0.0252,
+      "n": 104,
+      "share": 0.104,
+      "natural_recovery": 0.0096,
       "mean_p": 0.025
     }
   }

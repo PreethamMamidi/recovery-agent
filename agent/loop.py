@@ -7,7 +7,12 @@ from datetime import datetime, timedelta
 
 from agent.actions import DEBIT_ACTIONS, MESSAGE_ACTIONS, TERMINAL, Decision
 from agent.diagnose import diagnose
-from agent.guardrails import RunContext, apply_quiet_hours_shift, check
+from agent.guardrails import (
+    VALUE_ESCALATE_INR,
+    RunContext,
+    apply_quiet_hours_shift,
+    check,
+)
 from agent.policy import plan
 from generator.config import MEASUREMENT_WINDOW_DAYS, load_failure_classes
 
@@ -25,13 +30,16 @@ class Step:
     gate_reason: str
     diagnosed_class: str
     attempt_number: int
+    flagged_for_review: bool = False
 
 
-def _record(steps, at, proposed, executed, result, reason, diagnosed, attempt) -> None:
+def _record(steps, at, proposed, executed, result, reason, diagnosed, attempt,
+            flagged: bool = False) -> None:
     steps.append(Step(
         at=at, proposed=proposed, executed=executed,
         gate_result=result, gate_reason=reason,
         diagnosed_class=diagnosed, attempt_number=attempt,
+        flagged_for_review=flagged,
     ))
 
 
@@ -57,6 +65,7 @@ def build_schedule(vis, customer: dict) -> tuple[str, list[Step]]:
         opted_out=_opted_out(customer),
     )
     steps: list[Step] = []
+    flagged = vis.amount >= VALUE_ESCALATE_INR
 
     for item in plan(vis, customer, diagnosed):
         at = item.at
@@ -68,13 +77,13 @@ def build_schedule(vis, customer: dict) -> tuple[str, list[Step]]:
 
         if gate.allowed and gate.executed is not None:
             _record(steps, at, proposed, gate.executed, "allowed", gate.reason,
-                    diagnosed, ctx.attempt_number)
+                    diagnosed, ctx.attempt_number, flagged)
             if _consume(ctx, gate.executed, fc.max_attempts):
                 break
             continue
 
         _record(steps, at, proposed, None, "rejected", gate.reason,
-                diagnosed, ctx.attempt_number)
+                diagnosed, ctx.attempt_number, flagged)
 
         fallback = gate.executed
         if fallback is None:
@@ -86,7 +95,7 @@ def build_schedule(vis, customer: dict) -> tuple[str, list[Step]]:
             continue
         _record(steps, fb_at, fallback, use, "allowed",
                 fb_gate.reason if fb_gate.allowed else "fallback_terminal",
-                diagnosed, ctx.attempt_number)
+                diagnosed, ctx.attempt_number, flagged)
         if _consume(ctx, use, fc.max_attempts):
             break
 

@@ -225,5 +225,21 @@ DELIBERATE_ABANDON_REASONS = {"payment_cancelled"}
 # Mandate refusal, as opposed to a timeout - it will not reverse in minutes.
 MANDATE_REFUSAL_REASONS = {"mandate_creation_declined"}
 
+# RBI Digital Payments – E-mandate Framework, 2026 (effective 21 Apr 2026):
+# subsequent recurring transactions may skip AFA up to ₹15,000. Above that
+# the customer is present (PIN/OTP), so a checkout-style input error is
+# possible on a mandate debit. Insurance/MF/CC-bill sit at ₹1,00,000; we
+# use the general threshold because this batch is not those categories.
+AFA_THRESHOLD_INR = 15000
+
+# Checkout-page session errors: nobody cancels a debit that runs while
+# they are asleep. These cannot coexist with an active silent mandate.
+CHECKOUT_SESSION_REASONS = {
+    "payment_cancelled",
+    "payment_timed_out",
+    "payment_session_expired",
+    "collect_request_pending",
+}
+
 METHODS = ["card", "upi", "netbanking"]
 METHOD_WEIGHTS = [0.45, 0.40, 0.15]

@@ -8,10 +8,10 @@ This note is a walkthrough of the work after the generator (Day 1) and first sim
 
 Day 1 produced a 1,000-payment synthetic batch with a visible/hidden split. Day 2 added `simulator/response.py` and two class-blind baselines:
 
-- **A** — one retry at 24h, no message (34.3% recovery)
-- **B** — one generic SMS plus retries at 24h / 72h / 120h (40.1% recovery)
+- **A** — one retry at 24h, no message
+- **B** — one generic SMS plus retries at 24h / 72h / 120h
 
-B was a strong baseline on purpose. The remaining work was: close measurement holes, prove the over-contact penalty, then ship a bounded rule-based agent that wins on **efficiency** even if it does not beat B on raw recovery.
+B was a strong baseline on purpose. The remaining work was: close measurement holes, prove the over-contact penalty, then ship a bounded rule-based agent. Those Day-2 recovery rates are from the pre-presence-map batch. Canonical figures after subsequent generator and agent work are in §4 and `results_after_fix7.json`.
 
 ---
 
@@ -48,35 +48,35 @@ A and B never hit `annoyance_threshold` (2–5 contacts). One SMS cannot prove t
 
 C sends **five SMS** over 14 days plus a spray of retries, still class-blind. That is enough to fire the penalty.
 
-Result on the treatment arm (n = 808):
+Result on the treatment arm (canonical batch, n = 813):
 
 | | Recovery | Wasted debits | Messages | Opt-outs | Net Rs |
 |---|---|---|---|---|---|
-| B | 40.1% | 700 | 808 | 0 | 1,470,786 |
-| C | 40.1% | 936 | 2,990 | **298** | **204,159** |
+| B | 32.5% | 426 | 813 | 0 | 1,377,187 |
+| C | 32.2% | 569 | 3,297 | **329** | **85,761** |
 
-Same recovery, ~7× worse net value. The stopping-rule story is now a measured fact, not a comment in the code.
+Same recovery, ~16× worse net value. The stopping-rule story is now a measured fact, not a comment in the code.
 
 ### 2.4 Honest per-class numbers (`eval/metrics.py`, `eval/run_baselines.py`)
 
-The old table used the **control slice** per class (~192 payments across 9 classes). `mandate_failure` and `instrument_invalid` control rates sat on a handful of rows.
+The old table used the **control slice** per class (~187 payments across 9 classes). `mandate_failure` and `instrument_invalid` control rates sat on a handful of rows.
 
 Now:
 
-- **Headline lift** = treatment recovery − randomized control arm (n = 192). This is the causal number.
+- **Headline lift** = treatment recovery − randomized control arm (n = 187). This is the causal number.
 - **Per-class diagnostics** = each *treatment* payment compared to its own `would_have_recovered_naturally`. Same n as A/B/C. Not mixed with the control slice.
 
 Eval also prints wasted debits, messages, messages per recovery, triggered opt-outs, recovered rupees, cost, and net value.
 
 ### 2.5 The `insufficient_funds` inversion (`eval/check_seeds.py`)
 
-On seed 42 the control *slice* for this class looked like 17.1% vs B 15.2%. That looked like “retrying hurts.”
+On seed 42 the control *slice* for this class is thin and noisy.
 
 `generator.generate` now accepts `--out` so other seeds can be written to temp dirs without touching `data/`.
 
-Five other seeds: B is **at or above** both the control slice and same-row natural every time. On the canonical batch, same-row natural is 12.7% and B is 15.2%.
+Five other seeds: agent NSF is above same-row natural every time, and below the 45% leak tripwire. On the canonical batch, same-row natural is 20.2% and B is 21.7%.
 
-**Conclusion:** a failed 24h retry is a no-op on the payday path. The earlier gap was small-n noise in the control slice, not a simulator bug. The simulator was not changed.
+**Conclusion:** a failed 24h retry is a no-op on the payday path. Gaps vs the control slice are small-n noise, not a simulator bug.
 
 ---
 
@@ -164,42 +164,52 @@ Example from a real run — `PAY_00003`:
 
 ## 4. Numbers on the canonical batch (n = 1,000, seed 42)
 
-Treatment n = 808. Control n = 192. Control recovery = 16.1%.
+Treatment n = 813. Control n = 187. Control recovery = 20.9%. Source: `results_after_fix7.json`.
 
-| Policy | Recovery | Lift | Wasted debits | Messages | Opt-outs | Net Rs |
-|---|---|---|---|---|---|---|
-| Control | 16.1% | — | 0 | 0 | 0 | 198,314 |
-| A | 34.3% | +18.1 pp | 235 | 0 | 0 | 1,312,711 |
-| B | **40.1%** | +24.0 pp | 700 | 808 | 0 | **1,470,786** |
-| C | 40.1% | +24.0 pp | 936 | 2,990 | 298 | 204,159 |
-| **Agent** | 33.4% | +17.3 pp | **0** | **396** | 0 | 994,580 |
+| Policy | Recovery | Lift | Wasted | Imposs | Messages | m/rec | Opt-outs | Net Rs |
+|---|---|---|---|---|---|---|---|---|
+| Control | 20.9% | — | 0 | 0 | 0 | 0 | 0 | 77,878 |
+| A | 26.8% | +6.0 pp | 142 | 417 | 0 | 0 | 0 | 1,072,537 |
+| B | 32.5% | +11.6 pp | 426 | 1,094 | 813 | 3.08 | 0 | 1,377,187 |
+| C | 32.2% | +11.4 pp | 569 | 1,427 | 3,297 | 12.58 | 329 | 85,761 |
+| **Agent** | **38.6%** | **+17.8 pp** | **0** | **0** | **639** | **2.04** | 0 | **1,564,615** |
+
+Control net is gross recovered (zero costs); rupee figures on that arm are noisy.
 
 ### How to read the agent vs B
 
-The agent does **not** beat B on recovery. Day 3 still counts as a win on the efficiency gates:
+The agent beats B on recovery **and** on efficiency:
 
-- wasted debits **0** (from 700)
-- messages **396** (from 808)
-- downtime messages **0**
-- **202** gate rejections in the audit log
+- wasted debits **0** (from 426)
+- impossible debits **0** (from 1,094)
+- messages **639** vs **813**; messages per recovery **2.04 vs 3.08**
+- downtime-with-mandate messages **0**
+- **27** gate rejections; **46** high-value rows flagged for review (policy still runs)
+
+The session 6h follow-up moved messages 591 → 639 and m/rec 1.93 → 2.04 while recovery went 37.8% → 38.6%. Both went up. Restraint was never “fewest messages” — it is no messages where they don’t help. Channel mix: 256 SMS / 312 WhatsApp / 71 email (preferred_channel). B is 813 SMS. WhatsApp costs ₹1 vs SMS ₹0.20; agent message cost is ₹367 vs B’s ₹163, more than covered by extra recoveries (Fix 7 vs Fix 6 net +₹8k on +48 sends).
 
 Where diagnosis actually changes the action:
 
 | Class | n | B | Agent | Why |
 |---|---|---|---|---|
-| `instrument_invalid` | 96 | 3.1% | **18.8%** | ask for a new instrument; stop retrying a dead card |
-| `mandate_failure` | 12 | 8.3% | **25.0%** | reauth, not debit |
-| `insufficient_funds` | 204 | 15.2% | **17.6%** | 1st/7th heuristic (not hidden `salary_day`; 17.6% ≪ 45% leak tripwire) |
-| `technical_downtime` | 117 | 78.6% | 73.5% | same idea as B (retry after heal), no SMS cost |
-| `customer_input_error` | 121 | 76.0% | 31.4% | link only; B also sprays mandate retries the taxonomy says the agent cannot complete |
+| `instrument_invalid` | 91 | 1.1% | **13.2%** | ask for a new instrument; stop retrying a dead card |
+| `mandate_failure` | 14 | 14.3% | **35.7%** | reauth, not debit |
+| `insufficient_funds` | 198 | 21.7% | **29.3%** | nearest 1st/7th/15th (not hidden `salary_day`; 29.3% ≪ 45% leak tripwire) |
+| `technical_downtime` | 115 | 77.4% | **86.1%** | backoff after wait; no SMS if mandate |
+| `temporary_lockout` | 27 | 59.3% | **81.5%** | exponential 2h/8h/32h |
+| `session_expiry` | 66 | 34.8% | **43.9%** | immediate then 6h (holds on 5/5 seeds) |
+| `customer_input_error` | 122 | 40.2% | 41.0% | link only; B also sprays mandate retries |
+| `limit_exceeded` | 42 | **59.5%** | 54.8% | 00:30 ladder; B’s 24/72/120h still leads |
 
-B’s extra recovery is mostly “retry everything, including classes where retry is waste.” The agent refuses that trade.
+B still leads on `limit_exceeded` (59.5% vs 54.8% on 42 payments). Its 24/72/120h retries catch daily-cap resets the two-step 00:30 ladder misses. Matching it is possible; schedule-tuning stops here.
+
+Our schedules encode two stated priors — Indian salaries cluster at month-start, and issuer lockout windows are undocumented so backoff beats a fixed wait. Both hold across five unseen seeds, and we deliberately did not tune to the simulator's actual window bounds. The residual risk is that we've had several iterations on this data and the baselines have had none; on real data we'd expect the gap to narrow.
 
 ---
 
 ## 5. Tests and how to re-run
 
-`tests/test_day3.py` (stdlib `unittest`, 20 tests):
+`tests/test_day3.py` (stdlib `unittest`):
 
 - identity on all rows
 - failed retry does not suppress later natural recovery
@@ -226,7 +236,7 @@ python -m unittest tests.test_day3
 - No LLM copy (Day 5)
 - No dashboard (Day 6)
 - No live Razorpay or real SMS
-- Policy was not tuned for hours to chase B’s 40.1%. The number is written down; the delta to Day 7 is the next slide.
+- Policy was not tuned to the simulator’s hidden window bounds to chase B. The residual risk is several iterations on this data vs none for the baselines.
 
 ---
 

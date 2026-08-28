@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS decisions (
     gate_result TEXT NOT NULL,
     gate_reason TEXT NOT NULL,
     executed INTEGER NOT NULL,
+    flagged_for_review INTEGER NOT NULL DEFAULT 0,
     outcome TEXT,
     cost REAL
 );
@@ -51,18 +52,19 @@ def log_decision(conn: sqlite3.Connection, *,
                  gate_result: str,
                  gate_reason: str,
                  executed: bool,
+                 flagged_for_review: bool = False,
                  outcome: str | None = None,
                  cost: float | None = None) -> None:
     conn.execute(
         """INSERT INTO decisions (
             payment_id, attempt_number, timestamp, failure_class,
             chosen_action, action_args, gate_result, gate_reason,
-            executed, outcome, cost
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            executed, flagged_for_review, outcome, cost
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             payment_id, attempt_number, timestamp, failure_class,
             chosen_action, json.dumps(action_args), gate_result, gate_reason,
-            int(executed), outcome, cost,
+            int(executed), int(flagged_for_review), outcome, cost,
         ),
     )
 
@@ -74,6 +76,13 @@ def fetch_payment(conn: sqlite3.Connection, payment_id: str) -> list[sqlite3.Row
         (payment_id,),
     )
     return list(cur.fetchall())
+
+
+def count_flagged(conn: sqlite3.Connection) -> int:
+    row = conn.execute(
+        "SELECT COUNT(DISTINCT payment_id) FROM decisions WHERE flagged_for_review = 1"
+    ).fetchone()
+    return int(row[0])
 
 
 def count_rejections(conn: sqlite3.Connection) -> int:
