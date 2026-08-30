@@ -21,6 +21,12 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
 
 
+def resolve_data(data: Path | str = DATA) -> Path:
+    """Batch directory. Relative paths are from the repo root, not cwd."""
+    path = Path(data)
+    return path if path.is_absolute() else ROOT / path
+
+
 def read_csv(path: Path) -> list[dict]:
     with open(path, newline="", encoding="utf-8") as fh:
         return list(csv.DictReader(fh))
@@ -34,7 +40,11 @@ def parse_bool(v) -> bool:
     return str(v).strip().lower() in {"true", "1", "yes"}
 
 
-def load_world(data: Path = DATA) -> dict:
+def load_world(data: Path | str = DATA) -> dict:
+    # Always the canonical taxonomy: policy and max_attempts must not silently
+    # pick up a robustness CSV. Calibrated/sensitivity p_resolves is already
+    # baked into this batch's ground_truth.csv at generate time.
+    data = resolve_data(data)
     classes = load_failure_classes()
     pay_vis = read_csv(data / "payments_visible.csv")
     return {

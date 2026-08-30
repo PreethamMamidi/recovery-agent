@@ -6,7 +6,12 @@ This file is the SINGLE SOURCE OF TRUTH for failure classes. It is read by:
   - the simulator   (to decide whether a problem resolves)
   - the agent       (Day 3, as its diagnosis lookup)
 
-Same CSV, three consumers. Do not fork it.
+Same CSV, three consumers. Do not fork it for policy.
+
+Robustness mixes (failure_classes_calibrated.csv, sensitivity_*.csv) are
+generation-only: they change the batch written under --out. Eval still
+loads this canonical file for policy / max_attempts; a batch's p_resolves
+already sits in that batch's ground_truth.csv.
 """
 
 import csv

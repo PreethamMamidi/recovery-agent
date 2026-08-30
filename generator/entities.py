@@ -83,12 +83,41 @@ class PaymentHidden:
         return asdict(self)
 
 
+# Razorpay reports an 8–12pp success drop at 7–10 PM from bank load.
+# Sampling these hours is a robustness flag (--peak-hours), never the
+# canonical path: uniform 0–23 is what produced the published data/ batch.
+PEAK_HOURS = (19, 20, 21, 22)  # 19:00–22:00 inclusive
+# Share of failures drawn in PEAK_HOURS vs ~4/24 ≈ 17% under uniform.
+PEAK_MASS = 0.40
+# technical_downtime concentrates further: the published drop is load-related
+# rail failure, not a uniform mix shift. Separate from PEAK_MASS so we can
+# attribute "more evening" vs "more downtime-in-evening".
+DOWNTIME_PEAK_MASS = 0.70
+
+
+def _draw_hour(rng: random.Random, peak_hours: bool,
+               concentrate_downtime: bool) -> int:
+    """Uniform 0–23 unless --peak-hours. Same RNG call when peak_hours is off,
+    so a no-flag generate still matches data/."""
+    if not peak_hours:
+        return rng.randint(0, 23)
+    mass = DOWNTIME_PEAK_MASS if concentrate_downtime else PEAK_MASS
+    if rng.random() < mass:
+        return rng.choice(PEAK_HOURS)
+    return rng.randint(0, 23)
+
+
 def make_payment(pid: str, cust: CustomerVisible, fc: FailureClass,
-                 rng: random.Random, period_start: datetime
+                 rng: random.Random, period_start: datetime,
+                 peak_hours: bool = False,
                  ) -> tuple[PaymentVisible, PaymentHidden]:
 
+    # Day first, then hour, then minute — same order as before peak_hours
+    # existed, so default False does not reshuffle the canonical RNG stream.
     failed_at = period_start + timedelta(
-        days=rng.randint(0, 27), hours=rng.randint(0, 23), minutes=rng.randint(0, 59))
+        days=rng.randint(0, 27),
+        hours=_draw_hour(rng, peak_hours, fc.class_id == "technical_downtime"),
+        minutes=rng.randint(0, 59))
 
     reason = rng.choices(ERROR_REASONS[fc.class_id],
                          weights=reason_weights_for(fc.class_id))[0]

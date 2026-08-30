@@ -11,6 +11,7 @@ treatment slice rather than a thin control slice.
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 
@@ -23,6 +24,7 @@ from eval.metrics import (
     identity_mismatches,
     load_world,
     rate,
+    resolve_data,
     run_schedule,
 )
 
@@ -85,8 +87,17 @@ def _print_per_class(classes, *policies) -> None:
         print(line)
 
 
-def main() -> int:
-    world = load_world()
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument(
+        "--data", default=str(DATA.relative_to(DATA.parent)),
+        help="Batch directory. Default data/ is the published canonical batch; "
+             "robustness runs pass e.g. data/calibrated/seed_42 so headline "
+             "numbers stay attached to data/. Taxonomy for policy is always "
+             "the canonical CSV; this batch's p_resolves is in ground_truth.csv.")
+    args = ap.parse_args(argv)
+    data = resolve_data(args.data)
+    world = load_world(data)
     ident = identity_mismatches(world)
     ctl = control_totals(world)
     ctl._ident_ok = ident == 0  # type: ignore[attr-defined]
@@ -94,7 +105,7 @@ def main() -> int:
     b = run_schedule(world, schedule_b, "B SMS+3 retries")
     c = run_schedule(world, schedule_c, "C aggressive")
 
-    summary = json.loads((DATA / "generation_summary.json").read_text())
+    summary = json.loads((data / "generation_summary.json").read_text())
     print(f"\n  {len(world['pay_vis'])} payments · control {ctl.n}  |  "
           f"treatment {a.n}")
     print(f"  generation-summary control recovery : "

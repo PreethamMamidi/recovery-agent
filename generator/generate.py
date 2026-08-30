@@ -23,13 +23,25 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
-from .config import (load_failure_classes, CONTROL_ARM_FRACTION,
+from .config import (load_failure_classes, CONFIG_PATH, CONTROL_ARM_FRACTION,
                      MEASUREMENT_WINDOW_DAYS, RANDOM_SEED)
 from .latents import make_latents
 from .entities import make_customer, make_payment
-from .natural_recovery import natural_recovery
+from .natural_recovery import (
+    DEFAULT_INTENT_WEIGHT,
+    DEFAULT_REATTEMPT_WEIGHT,
+    natural_recovery,
+)
 
-DATA = Path(__file__).resolve().parents[1] / "data"
+ROOT = Path(__file__).resolve().parents[1]
+DATA = ROOT / "data"
+
+# Canonical coefficients for p_reattempts. Sensitivity may shift them ±0.1
+# via generate kwargs; leaving the defaults keeps data/ bit-identical.
+# The p_resolves sweep is a different lever (config CSV) and is never mixed
+# with this one, so a gap move can be attributed to one change.
+REATTEMPT_WEIGHT_DEFAULT = DEFAULT_REATTEMPT_WEIGHT
+INTENT_WEIGHT_DEFAULT = DEFAULT_INTENT_WEIGHT
 
 
 def write_csv(path: Path, rows: list[dict]) -> None:
@@ -41,11 +53,30 @@ def write_csv(path: Path, rows: list[dict]) -> None:
         w.writerows(rows)
 
 
+def _repo_path(p: str | Path) -> Path:
+    path = Path(p)
+    return path if path.is_absolute() else ROOT / path
+
+
 def generate(n_payments: int, seed: int = RANDOM_SEED,
-             out_dir: Path | None = None) -> dict:
+             out_dir: Path | None = None,
+             config_path: Path | None = None,
+             peak_hours: bool = False,
+             reattempt_weight: float = REATTEMPT_WEIGHT_DEFAULT,
+             intent_weight: float = INTENT_WEIGHT_DEFAULT) -> dict:
+    """
+    Write a batch. Defaults reproduce the published data/ batch (canonical
+    CSV, uniform failed_at hours, 0.35/0.45 reattempt mix). Robustness runs
+    pass --config / --out / --peak-hours so data/ stays the headline.
+    """
     data = Path(out_dir) if out_dir is not None else DATA
     rng = random.Random(seed)
-    classes = load_failure_classes()
+    # Default CONFIG_PATH is the estimated mix. Calibrated NPCI weights live
+    # in failure_classes_calibrated.csv (weights only — p_resolves untouched).
+    cfg = Path(config_path) if config_path is not None else CONFIG_PATH
+    if not cfg.is_absolute():
+        cfg = ROOT / cfg
+    classes = load_failure_classes(cfg)
     data.mkdir(parents=True, exist_ok=True)
 
     class_ids = list(classes)
@@ -71,14 +102,17 @@ def generate(n_payments: int, seed: int = RANDOM_SEED,
         cust = customers[rng.choice(cust_ids)]
         fc = classes[rng.choices(class_ids, weights)[0]]
 
-        vis, hid = make_payment(pid, cust, fc, rng, period_start)
+        vis, hid = make_payment(pid, cust, fc, rng, period_start,
+                                peak_hours=peak_hours)
 
         # Arm assignment is a property of the PAYMENT, decided at generation
         # time - not something the eval script works out later. It is a random
         # slice of every class and customer type, never a selected category.
         vis.arm = "control" if rng.random() < CONTROL_ARM_FRACTION else "treatment"
 
-        recovered, when, p_used = natural_recovery(vis, hid, latents[cust.customer_id], fc, rng)
+        recovered, when, p_used = natural_recovery(
+            vis, hid, latents[cust.customer_id], fc, rng,
+            reattempt_weight=reattempt_weight, intent_weight=intent_weight)
 
         pay_vis.append(vis.as_row())
         pay_hid.append(hid.as_row())
@@ -145,10 +179,43 @@ def main():
     ap.add_argument("--n", type=int, default=1000)
     ap.add_argument("--seed", type=int, default=RANDOM_SEED)
     ap.add_argument("--out", type=str, default=None,
-                    help="Output directory (default: data/)")
+                    help="Output directory (default: data/). Robustness batches "
+                         "must pass this so the published data/ mix is not overwritten.")
+    ap.add_argument(
+        "--config", type=str, default=str(CONFIG_PATH.relative_to(ROOT)),
+        help="Failure-class CSV. Default is the estimated mix that reproduces "
+             "data/. Pass config/failure_classes_calibrated.csv for the NPCI "
+             "weight-only robustness mix (FinBox/NPCI 81.7%% BD / 18.3%% TD; "
+             "NACH inadequate-balance; Business Standard top reasons; largest "
+             "weight Δ is 0.05). Do not point this at a p_resolves-shifted "
+             "file in the same run as a weight change — two experiments, "
+             "two directories.")
+    ap.add_argument(
+        "--peak-hours", action="store_true", default=False,
+        help="Weight failed_at toward 19:00–22:00 (Razorpay 8–12pp evening "
+             "drop). Off by default so canonical data/ stays uniform-hours. "
+             "Use only for a separate data/calibrated_peak/ batch — never "
+             "mixed into the weight-only calibrated run.")
+    ap.add_argument(
+        "--reattempt-weight", type=float, default=REATTEMPT_WEIGHT_DEFAULT,
+        help="Coefficient on reattempt_propensity in p_reattempts "
+             f"(default {REATTEMPT_WEIGHT_DEFAULT}). Sensitivity-only; "
+             "canonical generate must leave this unset.")
+    ap.add_argument(
+        "--intent-weight", type=float, default=INTENT_WEIGHT_DEFAULT,
+        help="Coefficient on true_intent_to_pay in p_reattempts "
+             f"(default {INTENT_WEIGHT_DEFAULT}). Sensitivity-only; "
+             "canonical generate must leave this unset.")
     args = ap.parse_args()
 
-    s = generate(args.n, args.seed, Path(args.out) if args.out else None)
+    s = generate(
+        args.n, args.seed,
+        _repo_path(args.out) if args.out else None,
+        config_path=_repo_path(args.config),
+        peak_hours=args.peak_hours,
+        reattempt_weight=args.reattempt_weight,
+        intent_weight=args.intent_weight,
+    )
 
     print(f"\n  {s['n_payments']} payments · {s['n_customers']} customers "
           f"· window {s['measurement_window_days']}d")

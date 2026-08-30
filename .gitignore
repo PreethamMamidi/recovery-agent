@@ -11,3 +11,12 @@ Thumbs.db
 .idea/
 .vscode/
 audit/log.db
+
+# Robustness batches. Never commit these as a silent re-baseline of data/.
+# Canonical headlines stay attached to data/ (seed 42, estimated mix).
+data/calibrated/
+data/calibrated_peak/
+data/sens_*/
+# Day 5 train batches and the fitted booster. Never a silent re-baseline of data/.
+data/train_*/
+model/artifacts/

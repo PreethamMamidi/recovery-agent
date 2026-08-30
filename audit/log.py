@@ -36,10 +36,14 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
 
 
 def reset(path: Path = DEFAULT_DB) -> sqlite3.Connection:
+    # Drop the table instead of unlinking: Windows locks log.db if a
+    # previous run_agent in this process has not fully released the file.
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        path.unlink()
-    return connect(path)
+    conn = sqlite3.connect(path)
+    conn.execute("DROP TABLE IF EXISTS decisions")
+    conn.execute(SCHEMA)
+    conn.commit()
+    return conn
 
 
 def log_decision(conn: sqlite3.Connection, *,

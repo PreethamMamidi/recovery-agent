@@ -26,6 +26,13 @@ import random
 
 from .config import MEASUREMENT_WINDOW_DAYS
 
+# Canonical mix: how much of unprompted retry comes from habit vs intent.
+# Sensitivity shifts these ±0.1 only through generate kwargs so a no-flag
+# run (and therefore data/) is unchanged. Do not combine with a p_resolves
+# shift in the same batch — that would mix two robustness levers.
+DEFAULT_REATTEMPT_WEIGHT = 0.35
+DEFAULT_INTENT_WEIGHT = 0.45
+
 
 def p_resolves_in_window(payment_vis, payment_hid, fc, window_end: datetime) -> float:
     """
@@ -71,13 +78,16 @@ def salary_lands_in_window(failed_at: datetime, salary_day: int,
     return False
 
 
-def p_reattempts(latents, fc, payment_hid) -> float:
+def p_reattempts(latents, fc, payment_hid,
+                 reattempt_weight: float = DEFAULT_REATTEMPT_WEIGHT,
+                 intent_weight: float = DEFAULT_INTENT_WEIGHT) -> float:
     """
     Will the customer bother trying again without being asked?
 
     Driven by the person, then nudged by how much friction the class imposes.
     """
-    base = 0.35 * latents.reattempt_propensity + 0.45 * latents.true_intent_to_pay
+    base = (reattempt_weight * latents.reattempt_propensity
+            + intent_weight * latents.true_intent_to_pay)
 
     friction = {
         "technical_downtime":   1.00,   # they were mid-purchase, low friction
@@ -98,7 +108,10 @@ def p_reattempts(latents, fc, payment_hid) -> float:
 
 
 def natural_recovery(payment_vis, payment_hid, latents, fc,
-                     rng: random.Random) -> tuple[bool, str | None, float]:
+                     rng: random.Random,
+                     reattempt_weight: float = DEFAULT_REATTEMPT_WEIGHT,
+                     intent_weight: float = DEFAULT_INTENT_WEIGHT,
+                     ) -> tuple[bool, str | None, float]:
     """
     Returns (recovered, recovery_date_iso, p_used).
 
@@ -114,7 +127,8 @@ def natural_recovery(payment_vis, payment_hid, latents, fc,
     else:
         p_res = p_resolves_in_window(payment_vis, payment_hid, fc, window_end)
 
-    p_ra = p_reattempts(latents, fc, payment_hid)
+    p_ra = p_reattempts(latents, fc, payment_hid,
+                       reattempt_weight, intent_weight)
     p = p_res * p_ra
 
     if rng.random() >= p:
