@@ -149,7 +149,7 @@ python -m eval.check_seeds
 
 Costs (fixed in `config/costs.py` before seeing results): Rs 2 / debit, Rs 0.20 / SMS, Rs 1 / WhatsApp, Rs 0.05 / email, opt-out = 30% of LTV.
 
-Canonical batch: seed 42, treatment n=813, `results_after_fix7.json`.
+Canonical batch: seed 42, treatment n=813, `results_after_rebaseline.json`.
 
 | | rec | lift vs control | wasted | imposs | msgs | opt-outs | net Rs |
 |---|---|---|---|---|---|---|---|
@@ -190,23 +190,23 @@ python -m eval.run_agent
 |---|---|---|---|---|---|---|---|---|
 | Control | 20.9% | - | 0 | 0 | 0 | 0 | 0 | 77,878 |
 | B | 32.5% | +11.6 pp | 426 | 1,094 | 813 | 3.08 | 0 | 1,377,187 |
-| **Agent** | **38.6%** | **+17.8 pp** | **0** | **0** | **639** | **2.04** | 0 | **1,564,615** |
+| **Agent** | **41.5%** | **+20.6 pp** | **0** | **0** | **951** | **2.82** | 0 | **1,657,339** |
 
 Agent beats B on recovery and on efficiency. Zero wasted debits, zero impossible debits, **zero downtime-with-mandate messages**, 27 gate rejections, 46 high-value rows flagged for review (policy still runs).
 
-Messages: agent 639 vs B 813. Messages per recovery **2.04 vs 3.08** — both recovery and the ratio moved up from the pre-follow-up snapshot (591 / 1.93 at 37.8%), because the session 6h second ask converts and costs a send. The restraint claim is not “fewest messages”; it is no messages where they don’t help. Channel mix (preferred_channel, not a spray): 256 SMS / 312 WhatsApp / 71 email. B is 813 SMS. WhatsApp is ₹1 vs SMS ₹0.20; agent message cost is ₹367 vs B’s ₹163, more than covered by extra recoveries (net ₹1.56M vs ₹1.38M; Fix 7 vs Fix 6 net +₹8k on +48 sends).
+Messages: agent **951** vs B 813. That exceeds B. The restraint claim was never “fewest messages” — it is messages-per-recovery and zero messages where they don’t help. Messages per recovery **2.82 vs 3.08**. Channel mix (preferred_channel, not a spray): 373 SMS / 464 WhatsApp / 114 email. B is 813 SMS. The 6h second ask on four customer-action classes is in `policy.py` (folded in after a no-model ablation showed it was a rule, not an ML result). Fix 7 sat at 38.6% / 639 messages; `results_before_rebaseline.json` holds that snapshot.
 
 Where the taxonomy actually changes the action:
 
 | class | n | B | agent | what changed |
 |---|---|---|---|---|
-| `instrument_invalid` | 91 | 1.1% | **13.2%** | update request, no debit |
-| `mandate_failure` | 14 | 14.3% | **35.7%** | reauth, mandate gate demo |
+| `instrument_invalid` | 91 | 1.1% | **23.1%** | update request, no debit; 6h follow-up |
+| `mandate_failure` | 14 | 14.3% | **42.9%** | reauth, mandate gate demo; 6h follow-up |
 | `insufficient_funds` | 198 | 21.7% | **29.3%** | nearest 1st/7th/15th (not `salary_day`) |
 | `technical_downtime` | 115 | 77.4% | **86.1%** | wait then backoff; no SMS if mandate |
 | `temporary_lockout` | 27 | 59.3% | **81.5%** | exponential 2h/8h/32h |
 | `session_expiry` | 66 | 34.8% | **43.9%** | immediate then 6h (holds on 5/5 seeds) |
-| `customer_input_error` | 122 | 40.2% | 41.0% | link only; B also sprays retries |
+| `customer_input_error` | 122 | 40.2% | **51.6%** | link then +6h |
 | `limit_exceeded` | 42 | **59.5%** | 54.8% | 00:30 ladder; B’s 24/72/120h still leads |
 
 B still leads on `limit_exceeded` (59.5% vs 54.8% on 42 payments). Its 24/72/120h retries catch daily-cap resets the two-step 00:30 ladder misses. Matching it is possible; schedule-tuning stops here.
@@ -221,7 +221,7 @@ Example gate rejection (`PAY_00071`): opted-out NSF → `retry_debit` rejected �
 
 ## Robustness (calibration and sensitivity)
 
-Headline numbers above are the canonical `data/` batch (seed 42, estimated mix). They are not replaced. The checks below write to `--out` directories and answer *"you made the data up"* without retuning policy.
+Headline numbers above are the canonical `data/` batch (seed 42, estimated mix). They are not replaced. The checks below write to `--out` directories and answer *"you made the data up"* without retuning policy. They were run on the Fix 7 agent (38.6%) and were not repeated after the second-ask rebaseline to 41.5%.
 
 **Class mix.** Generation weights have a second file, `config/failure_classes_calibrated.csv`, anchored on NPCI's published business/technical decline split — 81.7% BD / 18.3% TD across the top 50 remitter banks (FinBox analysis of NPCI bank stats, Mar 2022–Mar 2023). `technical_downtime` at 18% matches NPCI's TD share. NPCI and Business Standard both name insufficient balance and wrong PIN as the top two reasons; those are the two largest calibrated classes at 28% and 17%. Card and mandate-lifecycle failures fall outside the UPI decline taxonomy and stay estimated. The largest weight move versus the estimated mix is 0.05. `p_resolves` is not changed in that file.
 
@@ -244,25 +244,23 @@ python -m unittest discover tests
 
 ## Day 5 — Propensity (optional; rules stay the default)
 
-The rule agent above is the floor. A LightGBM propensity model (`P(recover | visible features, action, channel)`) was trained on seeds **101–108** only. Eval seeds 42 / 1 / 2 / 7 / 99 / 123 were never used to fit.
+The rule agent above is the floor: **41.5%**. A LightGBM propensity model (`P(recover | visible features, action, channel)`) was trained on seeds **101–108** only. Eval seeds 42 / 1 / 2 / 7 / 99 / 123 were never used to fit. Converting-step labels: ROC-AUC **0.778**, PR-AUC **0.409**.
 
-ROC-AUC **0.855**, PR-AUC **0.867**. Not a leak (`failure_class` is not the top feature). Calibration is a bit over-confident at the top.
+Three applications, measured against the 41.5% floor, 5/6-seed bar:
 
-Three applications, measured separately, 5/6-seed bar:
-
-- **Channel selection** — 5/6 seeds higher recovery; canonical net **drops**. Not the default.
-- **EV suppression** — no incremental effect (₹99 × p almost always beats a ₹1 WhatsApp).
-- **Second-ask targeting** — 6/6 seeds higher recovery **and** net (canonical **42.1%**, net ₹1,648,999). Messages rise to 947 (above B). Most of the lift is “send a 6h follow-up on the four one-shot classes,” because EV almost never refuses. Available, not the default.
+- **Channel selection** — 6/6 rec and net (canonical **42.9%**). Not the default.
+- **EV suppression** — no incremental effect (`p * amount` almost never fails at ₹0.05–1).
+- **Second-ask rank cut** — same 42.9% as channel, **848 vs 951** messages. Bottom quartile of `p(step=2)` is 100% `issuer_decline` on 6/6. Available, not the default.
 
 ```bash
-python -m eval.run_agent                                    # still 38.6%
-python -m eval.run_agent --use-model --ml-app second_ask    # 42.1% on data/
+python -m eval.run_agent                                    # 41.5%
+python -m eval.run_agent --use-model --ml-app second_ask    # 42.9% on data/
 ```
 
-Full tables and the “who vs extra ask” caveat: [day5-results.md](day5-results.md).
+Full tables and the EV-floor finding: [day5-results.md](day5-results.md).
 
 ---
 
 ## Next: Day 6
 
-Dashboard. Afternoon NLP/RAG from the Day 5 doc is still open.
+Dashboard. Afternoon NLP/RAG from the Day 5 doc is still open. Headline to lead with: agent **41.5%**, lift **+20.6 pp**, wasted **0**. There is no `day6-day7-plan.md` in the repo yet; any mockup still showing 38.6% should use these numbers.

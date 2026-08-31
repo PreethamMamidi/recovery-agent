@@ -400,6 +400,24 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(executed.count("retry_debit"), len(hours))
         self.assertNotIn("escalate", executed)
 
+    def test_customer_action_immediate_then_followup(self):
+        vis = SimpleNamespace(
+            failed_at="2026-08-10T10:00:00", has_active_mandate=False,
+            error_reason="incorrect_otp", amount=500,
+        )
+        fc = load_failure_classes()["customer_input_error"]
+        steps = plan(vis, {"preferred_channel": "sms"}, "customer_input_error")
+        self.assertEqual(len(steps), 2)
+        self.assertLessEqual(len(steps), fc.max_attempts)
+        self.assertEqual(steps[0].decision.action, "send_payment_link")
+        self.assertEqual(steps[1].decision.action, "send_payment_link")
+        self.assertEqual(steps[1].at, steps[0].at + timedelta(hours=6))
+        diagnosed, gated = build_schedule(
+            vis, {"preferred_channel": "sms", "opted_out": False})
+        self.assertEqual(diagnosed, "customer_input_error")
+        executed = [s.executed.action for s in gated if s.executed]
+        self.assertEqual(executed.count("send_payment_link"), 2)
+
     def test_high_value_is_flagged_not_abandoned(self):
         vis = SimpleNamespace(
             failed_at="2026-08-10T10:00:00", has_active_mandate=True,

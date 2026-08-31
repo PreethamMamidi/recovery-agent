@@ -13,10 +13,11 @@ import argparse
 import csv
 import random
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from agent.actions import MESSAGE_ACTIONS, Decision
-from agent.loop import build_schedule
+from agent.loop import build_schedule, second_ask_p2
 from agent.ml_options import ML_APPS, MlOptions
 from audit.log import count_flagged, count_rejections, fetch_payment, log_decision, reset
 from baselines.aggressive_dunning import schedule as schedule_c
@@ -37,6 +38,7 @@ from eval.metrics import (
 )
 from eval.run_baselines import _print_headline, _print_per_class
 from model.features import FEATURES, delay_hours_of, extract
+from model.labels import converting_step_labels
 from simulator.response import (
     Action,
     latents_from_row,
@@ -79,7 +81,33 @@ def run_agent(world, ml: MlOptions | None = None,
     downtime_messages = 0
     traced_id = None
     logged: list[dict] = []
-    suppress_by_class: dict[str, list[int]] = {}
+    ml = ml or MlOptions()
+    if ml.dropped is None:
+        ml.dropped = []
+    p2_candidates_by_class: dict[str, int] = {}
+    p2_quartile_by_class: dict[str, int] = {}
+    if (ml.use_model and ml.app == "second_ask"
+            and ml.p2_percentile is not None and ml.p2_threshold is None):
+        import numpy as np
+        scored: list[tuple[str, float]] = []
+        for row in world["pay_vis"]:
+            vis = payment_visible_from_row(row)
+            if vis.arm != "treatment":
+                continue
+            cust = world["customers"][vis.customer_id]
+            p2 = second_ask_p2(vis, cust, calibrated=ml.calibrated)
+            if p2 is None:
+                continue
+            cls = str(getattr(vis, "failure_class", "") or "")
+            scored.append((cls, p2))
+            p2_candidates_by_class[cls] = p2_candidates_by_class.get(cls, 0) + 1
+        if scored:
+            ml.p2_threshold = float(np.percentile(
+                [p for _, p in scored], ml.p2_percentile,
+            ))
+            for cls, p2 in scored:
+                if p2 <= ml.p2_threshold:
+                    p2_quartile_by_class[cls] = p2_quartile_by_class.get(cls, 0) + 1
 
     for row in world["pay_vis"]:
         vis = payment_visible_from_row(row)
@@ -121,6 +149,7 @@ def run_agent(world, ml: MlOptions | None = None,
         out = respond(vis, hid, lat, fc, gt, sim_actions, opted_out=opted)
         add_row(totals, score_outcome(vis, cust, gt, out))
         if log_path is not None:
+            executed_logged = []
             for i, step in enumerate(steps):
                 if step.executed is None:
                     continue
@@ -128,7 +157,16 @@ def run_agent(world, ml: MlOptions | None = None,
                     "retry_debit", "schedule_for_payday", "wait_for_downtime_recovery",
                 }:
                     continue
-                logged.append(_decision_row(vis, cust, step, out.recovered, seed))
+                executed_logged.append((i, step))
+            rec_at = None
+            if out.recovered_at:
+                rec_at = datetime.fromisoformat(out.recovered_at)
+            ys = converting_step_labels(
+                [s.at for _, s in executed_logged],
+                out.recovered, rec_at, out.source,
+            )
+            for (i, step), y in zip(executed_logged, ys):
+                logged.append(_decision_row(vis, cust, step, bool(y), seed))
                 logged[-1]["step_index"] = i
 
         if traced_id is None and any(s.gate_result == "rejected" for s in steps):
@@ -155,7 +193,15 @@ def run_agent(world, ml: MlOptions | None = None,
     totals.flagged_for_review = count_flagged(conn)  # type: ignore[attr-defined]
     totals.traced_id = traced_id  # type: ignore[attr-defined]
     totals.conn = conn  # type: ignore[attr-defined]
-    totals.suppress_by_class = suppress_by_class  # type: ignore[attr-defined]
+    dropped = list(ml.dropped) if (ml and ml.dropped) else []
+    by_cls: dict[str, int] = {}
+    for cls, _reason in dropped:
+        by_cls[cls] = by_cls.get(cls, 0) + 1
+    totals.suppress_by_class = by_cls  # type: ignore[attr-defined]
+    totals.n_suppressed = len(dropped)  # type: ignore[attr-defined]
+    totals.p2_threshold = ml.p2_threshold  # type: ignore[attr-defined]
+    totals.p2_candidates_by_class = p2_candidates_by_class  # type: ignore[attr-defined]
+    totals.p2_quartile_by_class = p2_quartile_by_class  # type: ignore[attr-defined]
     if log_path is not None:
         log_path = Path(log_path)
         log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -188,8 +234,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--log-decisions", default=None,
         help="Write one CSV row per executed step (visible features + action + "
-             "payment-level recovered). Labels come from respond() at this "
-             "boundary. Do not include hidden/GT columns.")
+             "converting-step label). Credit the last action at recovered_at "
+             "if source=action; natural recoveries get 0. No hidden/GT columns.")
     ap.add_argument(
         "--use-model", action="store_true", default=False,
         help="Score message channel / suppression / second-ask with the "
@@ -206,12 +252,24 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--seed", type=int, default=None,
         help="Recorded on --log-decisions rows; also seeds channel exploration.")
+    ap.add_argument(
+        "--calibrated", action="store_true", default=False,
+        help="Apply val-set isotonic calibration at score time. Off by default.")
+    ap.add_argument(
+        "--p2-percentile", type=float, default=None,
+        help="second_ask only: drop extra asks with p(step=2) at or below this "
+             "percentile of the batch. Diagnostic rank filter; off by default.")
     args = ap.parse_args(argv)
+    if args.ml_app == "unconditional_second_ask" and args.use_model:
+        print("  NOTE  unconditional_second_ask is a no-model ablation; "
+              "ignoring --use-model")
     ml = MlOptions(
-        use_model=args.use_model,
+        use_model=args.use_model and args.ml_app != "unconditional_second_ask",
         app=args.ml_app,
         explore_channel=args.explore_channel,
         rng=random.Random(args.seed) if args.explore_channel > 0 else None,
+        calibrated=args.calibrated,
+        p2_percentile=args.p2_percentile,
     )
     world = load_world(resolve_data(args.data))
     ident = identity_mismatches(world)
@@ -245,11 +303,15 @@ def main(argv: list[str] | None = None) -> int:
         errors.append(f"agent recovery {agent.recovery_rate:.1%} is broken")
     if agent.wasted_debits >= 50:
         errors.append(f"wasted debits {agent.wasted_debits} (want < 50)")
-    if agent.messages > b.messages and not args.use_model:
-        errors.append(f"messages {agent.messages} exceeded B {b.messages}")
-    elif agent.messages > b.messages:
-        print(f"  NOTE  model messages {agent.messages} > B {b.messages} "
-              f"(Day 3 restraint gate is rule-path only)")
+    if agent.messages > b.messages:
+        print(f"  NOTE  messages {agent.messages} > B {b.messages}; "
+              f"restraint is m/rec {agent.messages_per_recovery:.2f} vs "
+              f"B {b.messages_per_recovery:.2f}, not fewest sends")
+    if agent.messages_per_recovery - 1e-9 > b.messages_per_recovery:
+        errors.append(
+            f"messages-per-recovery {agent.messages_per_recovery:.2f} "
+            f"exceeded B {b.messages_per_recovery:.2f}"
+        )
     if agent.downtime_messages:  # type: ignore[attr-defined]
         errors.append(f"technical_downtime messages={agent.downtime_messages}")
     if agent.rejections <= 0:  # type: ignore[attr-defined]

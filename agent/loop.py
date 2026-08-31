@@ -63,18 +63,25 @@ def _with_channel(proposed: Decision, channel: str) -> Decision:
     return decision(proposed.action, **args)
 
 
-def _maybe_second_ask(vis, diagnosed: str, items: list[Planned]) -> list[Planned]:
-    """Propose a 6h follow-up on one-shot customer-action classes. Model keeps it."""
-    if diagnosed not in SECOND_ASK_CLASSES:
-        return items
+def second_ask_p2(vis, customer: dict, *, calibrated: bool = False) -> float | None:
+    """p(step=2) for a proposed extra ask, or None if this payment has none."""
+    diagnosed = diagnose(vis.error_reason)
+    items = list(plan(vis, customer, diagnosed))
     messages = [it for it in items if it.decision.action in MESSAGE_ACTIONS]
-    if len(messages) != 1:
-        return items
-    first = messages[0]
-    follow = Planned(first.at + timedelta(hours=6), first.decision)
-    out = list(items)
-    out.append(follow)
-    return out
+    if diagnosed not in SECOND_ASK_CLASSES or len(messages) < 2:
+        return None
+    from model.features import delay_hours_of
+    from model.score import best_channel
+    second = messages[1]
+    delay = delay_hours_of(vis, second.at, second.decision)
+    _ch, p2, _value = best_channel(
+        vis, customer,
+        action_type=second.decision.action,
+        delay_hours=delay,
+        step_index=1,
+        calibrated=calibrated,
+    )
+    return p2
 
 
 def _rewrite_messages(vis, customer: dict, items: list[Planned],
@@ -85,6 +92,7 @@ def _rewrite_messages(vis, customer: dict, items: list[Planned],
 
     out: list[Planned] = []
     step_index = 0
+    first_p: float | None = None
     for item in items:
         proposed = item.decision
         if proposed.action not in MESSAGE_ACTIONS:
@@ -101,17 +109,44 @@ def _rewrite_messages(vis, customer: dict, items: list[Planned],
             step_index += 1
             continue
         from model.features import delay_hours_of
-        from model.score import best_channel
+        from model.score import best_channel, best_channel_lift
         delay = delay_hours_of(vis, item.at, proposed)
-        ch, _p, value = best_channel(
-            vis, customer,
-            action_type=proposed.action,
-            delay_hours=delay,
-            step_index=step_index,
-        )
-        if ml.app in {"suppress", "second_ask"} and value < 0:
-            step_index += 1
-            continue
+        cls = str(getattr(vis, "failure_class", "") or "")
+        if (ml.app == "second_ask" and first_p is not None
+                and cls in SECOND_ASK_CLASSES):
+            ch, p2, value = best_channel_lift(
+                vis, customer, p_first=first_p,
+                action_type=proposed.action,
+                delay_hours=delay,
+                step_index=step_index,
+                calibrated=ml.calibrated,
+            )
+            drop = (
+                p2 <= ml.p2_threshold
+                if ml.p2_threshold is not None
+                else value < 0
+            )
+            if drop:
+                if ml.dropped is not None:
+                    reason = "p2_quartile" if ml.p2_threshold is not None else "p2_floor"
+                    ml.dropped.append((cls, reason))
+                step_index += 1
+                continue
+        else:
+            ch, p, value = best_channel(
+                vis, customer,
+                action_type=proposed.action,
+                delay_hours=delay,
+                step_index=step_index,
+                calibrated=ml.calibrated,
+            )
+            if first_p is None:
+                first_p = p
+            if ml.app in {"suppress", "second_ask"} and value < 0:
+                if ml.dropped is not None:
+                    ml.dropped.append((cls, "ev_floor"))
+                step_index += 1
+                continue
         proposed = _with_channel(proposed, ch)
         out.append(Planned(item.at, proposed))
         step_index += 1
@@ -134,8 +169,6 @@ def build_schedule(vis, customer: dict,
     flagged = vis.amount >= VALUE_ESCALATE_INR
 
     items = list(plan(vis, customer, diagnosed))
-    if ml.use_model and ml.app == "second_ask":
-        items = _maybe_second_ask(vis, diagnosed, items)
     items = _rewrite_messages(vis, customer, items, ml)
 
     for item in items:

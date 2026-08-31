@@ -93,6 +93,15 @@ def _channel(preferred: str) -> str:
     return "sms"
 
 
+def _ask_then_followup(failed_at: datetime, action: str, channel: str) -> list[Planned]:
+    """Immediate customer-action message, then the same message +6h."""
+    first = Planned(
+        failed_at + timedelta(minutes=2),
+        decision(action, channel=channel),
+    )
+    return [first, Planned(first.at + timedelta(hours=6), first.decision)]
+
+
 def plan(vis, customer: dict, diagnosed_class: str) -> list[Planned]:
     """Build an open-loop schedule from the taxonomy row."""
     failed_at = datetime.fromisoformat(vis.failed_at)
@@ -180,19 +189,15 @@ def plan(vis, customer: dict, diagnosed_class: str) -> list[Planned]:
         ][: fc.max_attempts]
 
     if diagnosed_class == "customer_input_error":
-        return [Planned(failed_at + timedelta(minutes=2),
-                        decision("send_payment_link", channel=ch))]
+        return _ask_then_followup(failed_at, "send_payment_link", ch)
 
     if diagnosed_class == "instrument_invalid":
-        return [Planned(failed_at + timedelta(minutes=2),
-                        decision("request_instrument_update", channel=ch))]
+        return _ask_then_followup(failed_at, "request_instrument_update", ch)
 
     if diagnosed_class == "issuer_decline":
-        return [Planned(failed_at + timedelta(minutes=2),
-                        decision("send_payment_link", channel=ch))]
+        return _ask_then_followup(failed_at, "send_payment_link", ch)
 
     if diagnosed_class == "mandate_failure":
-        return [Planned(failed_at + timedelta(minutes=2),
-                        decision("request_mandate_reauth", channel=ch))]
+        return _ask_then_followup(failed_at, "request_mandate_reauth", ch)
 
     raise ValueError(f"no policy for class {diagnosed_class!r}")

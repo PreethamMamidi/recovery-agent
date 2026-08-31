@@ -2,7 +2,7 @@
 
 **Recovery Agent — Razorpay Buildathon Track 03**
 
-Plan written after the first Day 2 eval. Canonical numbers after later generator and agent work are in `README.md` and `results_after_fix7.json` (agent 38.6% / B 32.5% / +17.8 pp).
+Plan written after the first Day 2 eval. Canonical numbers after later generator and agent work are in `README.md` and `results_after_rebaseline.json` (agent 41.5% / B 32.5% / +20.6 pp). Fix 7 sat at 38.6%; that snapshot is `results_before_rebaseline.json`.
 
 ---
 

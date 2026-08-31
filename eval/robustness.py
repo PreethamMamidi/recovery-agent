@@ -27,7 +27,7 @@ ROBUSTNESS_SEEDS = (42, 1, 2, 7, 99, 123)
 # they must not replace it.
 PUBLISHED_AGENT = 0.386
 PUBLISHED_B = 0.325
-PUBLISHED_GAP = 0.061  # 38.6 vs 32.5
+PUBLISHED_GAP = 0.061  # Fix 7: 38.6 vs 32.5. Rebaseline is 41.5; these runs were not repeated.
 PUBLISHED_CONTROL = 0.209
 
 

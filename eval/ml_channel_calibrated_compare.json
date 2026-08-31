@@ -1,5 +1,5 @@
 {
-  "app": "suppress",
+  "app": "channel",
   "wins": 6,
   "accept": true,
   "rows": [
@@ -7,7 +7,7 @@
       "seed": 42,
       "win": true,
       "rec_win": true,
-      "net_win": true,
+      "net_win": false,
       "rules": {
         "recovery": 0.386224,
         "net_value": 1564615.25,
@@ -41,23 +41,21 @@
         }
       },
       "model": {
-        "recovery": 0.394834,
-        "net_value": 1579500.65,
-        "messages": 632,
+        "recovery": 0.387454,
+        "net_value": 1479739.9,
+        "messages": 634,
         "wasted": 0,
         "impossible": 0,
         "identity_ok": true,
-        "n_suppressed": 1,
-        "suppress_by_class": {
-          "issuer_decline": 1
-        },
+        "n_suppressed": 0,
+        "suppress_by_class": {},
         "by_class_messages": {
           "insufficient_funds": 53,
           "technical_downtime": 59,
-          "temporary_lockout": 35,
+          "temporary_lockout": 36,
           "customer_input_error": 117,
           "instrument_invalid": 90,
-          "issuer_decline": 134,
+          "issuer_decline": 135,
           "session_expiry": 109,
           "limit_exceeded": 22,
           "mandate_failure": 13
@@ -113,24 +111,22 @@
         }
       },
       "model": {
-        "recovery": 0.396966,
-        "net_value": 1466767.75,
-        "messages": 574,
+        "recovery": 0.391909,
+        "net_value": 1462776.05,
+        "messages": 577,
         "wasted": 0,
         "impossible": 0,
         "identity_ok": true,
-        "n_suppressed": 1,
-        "suppress_by_class": {
-          "issuer_decline": 1
-        },
+        "n_suppressed": 0,
+        "suppress_by_class": {},
         "by_class_messages": {
           "technical_downtime": 54,
           "customer_input_error": 103,
           "mandate_failure": 16,
           "insufficient_funds": 48,
-          "issuer_decline": 126,
+          "issuer_decline": 127,
           "temporary_lockout": 34,
-          "session_expiry": 88,
+          "session_expiry": 90,
           "instrument_invalid": 88,
           "limit_exceeded": 17
         },
@@ -185,8 +181,8 @@
         }
       },
       "model": {
-        "recovery": 0.405405,
-        "net_value": 1444163.05,
+        "recovery": 0.402948,
+        "net_value": 1384171.95,
         "messages": 621,
         "wasted": 0,
         "impossible": 0,
@@ -255,24 +251,22 @@
         }
       },
       "model": {
-        "recovery": 0.384236,
-        "net_value": 1934017.85,
-        "messages": 619,
+        "recovery": 0.378079,
+        "net_value": 1867056.9,
+        "messages": 623,
         "wasted": 0,
         "impossible": 0,
         "identity_ok": true,
-        "n_suppressed": 1,
-        "suppress_by_class": {
-          "issuer_decline": 1
-        },
+        "n_suppressed": 0,
+        "suppress_by_class": {},
         "by_class_messages": {
           "insufficient_funds": 50,
           "temporary_lockout": 45,
           "customer_input_error": 118,
-          "session_expiry": 103,
+          "session_expiry": 105,
           "instrument_invalid": 91,
-          "issuer_decline": 117,
-          "technical_downtime": 54,
+          "issuer_decline": 118,
+          "technical_downtime": 55,
           "limit_exceeded": 24,
           "mandate_failure": 17
         },
@@ -293,7 +287,7 @@
       "seed": 99,
       "win": true,
       "rec_win": true,
-      "net_win": true,
+      "net_win": false,
       "rules": {
         "recovery": 0.357143,
         "net_value": 1473665.9,
@@ -327,23 +321,21 @@
         }
       },
       "model": {
-        "recovery": 0.375616,
-        "net_value": 1506780.25,
-        "messages": 627,
+        "recovery": 0.368227,
+        "net_value": 1440715.55,
+        "messages": 630,
         "wasted": 0,
         "impossible": 0,
         "identity_ok": true,
-        "n_suppressed": 1,
-        "suppress_by_class": {
-          "issuer_decline": 1
-        },
+        "n_suppressed": 0,
+        "suppress_by_class": {},
         "by_class_messages": {
-          "issuer_decline": 118,
-          "technical_downtime": 67,
+          "issuer_decline": 119,
+          "technical_downtime": 68,
           "insufficient_funds": 55,
           "customer_input_error": 115,
           "instrument_invalid": 89,
-          "temporary_lockout": 39,
+          "temporary_lockout": 40,
           "limit_exceeded": 19,
           "session_expiry": 109,
           "mandate_failure": 16
@@ -400,7 +392,7 @@
       },
       "model": {
         "recovery": 0.372966,
-        "net_value": 1250722.4,
+        "net_value": 1204290.95,
         "messages": 625,
         "wasted": 0,
         "impossible": 0,

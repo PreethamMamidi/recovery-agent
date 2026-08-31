@@ -2,6 +2,8 @@
 
 **Recovery Agent — Razorpay Buildathon Track 03**
 
+Plan written against the Fix 7 floor (38.6%). Canonical headlines are now **41.5%** after the second-ask rebaseline (`results_after_rebaseline.json`). These robustness runs were not repeated; they still isolate class-mix and prior levers.
+
 Two additions that answer *"but you made the data up."* Neither changes the agent. Both are cheap.
 
 1. **Calibration** — ground the generation weights in published NPCI/RBI data instead of estimating them
@@ -13,7 +15,7 @@ Two additions that answer *"but you made the data up."* Neither changes the agen
 
 ### What is at risk
 
-Changing `gen_weight` changes the **class mix of the batch**, which changes **every headline number you have published.** 38.6%, 32.5%, +17.8pp, ₹1,564,615 — all of them move.
+Changing `gen_weight` changes the **class mix of the batch**, which changes **every headline number you have published.** 41.5%, 32.5%, +20.6pp, ₹1,657,339 — all of them move. The Fix 7 snapshot (38.6% / +17.8pp / ₹1,564,615) is `results_before_rebaseline.json`.
 
 You are at Day 5/6 with those numbers in the README, three planning docs, and several JSON snapshots. Re-baselining now is avoidable risk.
 

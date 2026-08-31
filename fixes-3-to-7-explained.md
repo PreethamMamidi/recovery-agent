@@ -2,7 +2,7 @@
 
 **Recovery Agent — Razorpay Buildathon Track 03**
 
-A record of five changes, what each was, why it mattered, and what would have happened without it. None of them was a bug in the agent.
+A record of five changes, what each was, why it mattered, and what would have happened without it. None of them was a bug in the agent. Fix 7 landed at **38.6%**. The canonical floor is now **41.5%** after folding the customer-action 6h second ask into `policy.py` — see `day5-results.md`. Numbers in this file are the Fix 7 snapshot.
 
 ---
 

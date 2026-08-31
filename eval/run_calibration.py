@@ -6,8 +6,9 @@ NPCI-weight calibration across seeds. Does not touch data/.
 
 Weight-only batches go to data/calibrated/seed_S. Evening-peak is a
 separate --peak-hours batch under data/calibrated_peak/ so a gap move
-can be attributed to one change. Canonical gap is the published
-38.6 vs 32.5 (+6.1).
+can be attributed to one change. Canonical gap recorded here is the Fix 7 published
+38.6 vs 32.5 (+6.1). Headlines later moved to 41.5%; these
+robustness batches were not re-run.
 """
 
 from __future__ import annotations

@@ -11,8 +11,8 @@ from __future__ import annotations
 import math
 from datetime import datetime
 
-# Payment-level recovery is the label (attached at the eval boundary, not here).
-# A row per executed step shares that label — delayed credit assignment.
+# Payment-level recovery used to be the label (smeared across steps).
+# Labels are now converting-step: see model.labels.converting_step_labels.
 FEATURES = [
     "amount", "log_amount", "method", "failure_class",
     "has_active_mandate", "attempt_number",

@@ -6,12 +6,15 @@ import ast
 import unittest
 from pathlib import Path
 
+from datetime import datetime
+
 from agent.loop import build_schedule
 from agent.ml_options import MlOptions
 from eval.metrics import load_world
 from generator.latents import CustomerLatents
 from generator.entities import PaymentHidden
 from model.features import FEATURES, hidden_columns
+from model.labels import converting_step_labels
 from model.split import split_customers
 from simulator.response import payment_visible_from_row
 
@@ -63,6 +66,94 @@ class RulePathUnchangedTests(unittest.TestCase):
             if n >= 25:
                 break
         self.assertGreater(n, 0)
+
+    def test_unconditional_second_ask_is_now_the_rule_schedule(self):
+        world = load_world()
+        found = False
+        for row in world["pay_vis"]:
+            vis = payment_visible_from_row(row)
+            if vis.arm != "treatment" or vis.failure_class != "customer_input_error":
+                continue
+            cust = world["customers"][vis.customer_id]
+            _, rules = build_schedule(vis, cust)
+            _, extra = build_schedule(
+                vis, cust,
+                ml=MlOptions(use_model=False, app="unconditional_second_ask"),
+            )
+            rule_msgs = [s for s in rules if s.executed and s.executed.action in {
+                "send_payment_link", "request_instrument_update",
+                "request_mandate_reauth", "send_reminder",
+            }]
+            extra_msgs = [s for s in extra if s.executed and s.executed.action in {
+                "send_payment_link", "request_instrument_update",
+                "request_mandate_reauth", "send_reminder",
+            }]
+            if len(rule_msgs) < 1:
+                continue
+            self.assertEqual(len(rule_msgs), 2, vis.payment_id)
+            self.assertEqual(
+                [(s.at, s.proposed, s.executed) for s in rules],
+                [(s.at, s.proposed, s.executed) for s in extra],
+            )
+            self.assertGreaterEqual(rule_msgs[1].at, rule_msgs[0].at)
+            found = True
+            break
+        self.assertTrue(found, "need a CIE treatment payment")
+
+    def test_session_expiry_is_not_given_a_third_ask(self):
+        world = load_world()
+        found = False
+        for row in world["pay_vis"]:
+            vis = payment_visible_from_row(row)
+            if vis.arm != "treatment" or vis.failure_class != "session_expiry":
+                continue
+            if vis.has_active_mandate:
+                continue
+            cust = world["customers"][vis.customer_id]
+            _, steps = build_schedule(vis, cust)
+            msgs = [s for s in steps if s.executed and s.executed.action in {
+                "send_payment_link", "send_reminder",
+            }]
+            self.assertEqual(len(msgs), 2, vis.payment_id)
+            found = True
+            break
+        self.assertTrue(found, "need a no-mandate session treatment payment")
+
+
+class ConvertingLabelTests(unittest.TestCase):
+    def setUp(self):
+        self.t0 = datetime(2026, 8, 10, 10, 0, 0)
+        self.t1 = datetime(2026, 8, 10, 16, 0, 0)
+
+    def test_not_recovered_all_zero(self):
+        self.assertEqual(
+            converting_step_labels([self.t0, self.t1], False, None, "none"),
+            [0, 0],
+        )
+
+    def test_natural_all_zero(self):
+        self.assertEqual(
+            converting_step_labels([self.t0, self.t1], True, self.t1, "natural"),
+            [0, 0],
+        )
+
+    def test_first_action_credited(self):
+        self.assertEqual(
+            converting_step_labels([self.t0, self.t1], True, self.t0, "action"),
+            [1, 0],
+        )
+
+    def test_second_action_credited(self):
+        self.assertEqual(
+            converting_step_labels([self.t0, self.t1], True, self.t1, "action"),
+            [0, 1],
+        )
+
+    def test_same_timestamp_last_wins(self):
+        self.assertEqual(
+            converting_step_labels([self.t0, self.t0], True, self.t0, "action"),
+            [0, 1],
+        )
 
 
 class ImportBoundaryTests(unittest.TestCase):

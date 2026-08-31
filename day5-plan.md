@@ -2,9 +2,11 @@
 
 **Recovery Agent — Razorpay Buildathon Track 03**
 
+Plan written before the Day 5 eval. The EV floor in §3.2–3.3 predicted suppression would work via `p * amount > cost`. It did not: at these message costs (email ₹0.05, WhatsApp ₹1) almost nothing fails the test. What the model actually learned is in `day5-results.md`. After the ablation, the 6h second ask was folded into `policy.py`; the rule floor is now **41.5%** (was 38.6% at Fix 7).
+
 Two halves. Morning is the ML decision layer. Afternoon is NLP and RAG.
 
-**Governing rule for the day:** the rule-based agent at 38.6% is your floor and your fallback. Every ML addition must beat it on the same seeds or it does not ship. *"We tried the model, it did not beat the rules, here is the evidence"* is a strong result — it demonstrates judgment. A shaky model presented as a win is not.
+**Governing rule for the day:** the rule-based agent at 41.5% is your floor and your fallback. Every ML addition must beat it on the same seeds or it does not ship. *"We tried the model, it did not beat the rules, here is the evidence"* is a strong result — it demonstrates judgment. A shaky model presented as a win is not.
 
 ---
 
@@ -313,3 +315,5 @@ If you attempt it, report the **Qini curve** (`causalml` or `scikit-uplift` have
 > The rules decide *what* to do — that comes from the failure taxonomy and it is auditable. The model decides *who* to do it to and *how* — which channel, whether a second ask is worth it, when contacting has negative expected value. The rules are the floor; the model is the margin. If the model fails, the agent degrades to the rule-based policy rather than to nothing.
 
 That last clause matters. **A bounded agent with a working fallback is a better story than a clever one without.**
+
+**Did the ML help?** Partly. The recovery gain was a rule change the model wrapped. But the model does one thing the rules cannot — it identifies which second asks are futile, with perfect class separation on unseen seeds, at zero recovery cost. We couldn't ship that as an EV filter because at ₹0.05 a message nothing fails the cost test, which is itself a finding about where EV-based targeting applies. Full answer: `day5-results.md`.

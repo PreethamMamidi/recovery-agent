@@ -1,6 +1,6 @@
 # Calibration and sensitivity results
 
-Robustness only. Canonical headlines stay on `data/` (seed 42, estimated mix): agent **38.6%**, B **32.5%**, gap **+6.1pp**, lift vs control **+17.8pp**. These runs write under `--out`. Policy, `agent/`, `simulator/`, and `generator/presence.py` were not edited. `config/failure_classes.csv` was not edited in place.
+Robustness only. These tables were measured on the Fix 7 agent (**38.6%**). The canonical floor is now **41.5%** after folding the 6h second ask into `policy.py` — see `day5-results.md` and `results_after_rebaseline.json`. The runs below were not repeated; they still answer *"you made the data up"* for the class-mix and prior levers.
 
 Reproduce:
 

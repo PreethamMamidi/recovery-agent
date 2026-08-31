@@ -1,5 +1,5 @@
 {
-  "app": "suppress",
+  "app": "second_ask",
   "wins": 6,
   "accept": true,
   "rows": [
@@ -41,9 +41,9 @@
         }
       },
       "model": {
-        "recovery": 0.394834,
-        "net_value": 1579500.65,
-        "messages": 632,
+        "recovery": 0.429274,
+        "net_value": 1688366.9,
+        "messages": 938,
         "wasted": 0,
         "impossible": 0,
         "identity_ok": true,
@@ -55,12 +55,12 @@
           "insufficient_funds": 53,
           "technical_downtime": 59,
           "temporary_lockout": 35,
-          "customer_input_error": 117,
-          "instrument_invalid": 90,
-          "issuer_decline": 134,
+          "customer_input_error": 202,
+          "instrument_invalid": 166,
+          "issuer_decline": 269,
           "session_expiry": 109,
           "limit_exceeded": 22,
-          "mandate_failure": 13
+          "mandate_failure": 23
         },
         "by_class_n": {
           "insufficient_funds": 198,
@@ -113,9 +113,9 @@
         }
       },
       "model": {
-        "recovery": 0.396966,
-        "net_value": 1466767.75,
-        "messages": 574,
+        "recovery": 0.427307,
+        "net_value": 1671845.1,
+        "messages": 859,
         "wasted": 0,
         "impossible": 0,
         "identity_ok": true,
@@ -125,13 +125,13 @@
         },
         "by_class_messages": {
           "technical_downtime": 54,
-          "customer_input_error": 103,
-          "mandate_failure": 16,
+          "customer_input_error": 177,
+          "mandate_failure": 29,
           "insufficient_funds": 48,
-          "issuer_decline": 126,
+          "issuer_decline": 253,
           "temporary_lockout": 34,
           "session_expiry": 88,
-          "instrument_invalid": 88,
+          "instrument_invalid": 159,
           "limit_exceeded": 17
         },
         "by_class_n": {
@@ -151,7 +151,7 @@
       "seed": 2,
       "win": true,
       "rec_win": true,
-      "net_win": false,
+      "net_win": true,
       "rules": {
         "recovery": 0.391892,
         "net_value": 1468205.25,
@@ -185,23 +185,23 @@
         }
       },
       "model": {
-        "recovery": 0.405405,
-        "net_value": 1444163.05,
-        "messages": 621,
+        "recovery": 0.437346,
+        "net_value": 1525619.2,
+        "messages": 908,
         "wasted": 0,
         "impossible": 0,
         "identity_ok": true,
         "n_suppressed": 0,
         "suppress_by_class": {},
         "by_class_messages": {
-          "issuer_decline": 107,
-          "instrument_invalid": 93,
+          "issuer_decline": 214,
+          "instrument_invalid": 167,
           "insufficient_funds": 59,
           "limit_exceeded": 26,
-          "customer_input_error": 125,
+          "customer_input_error": 219,
           "technical_downtime": 53,
           "session_expiry": 114,
-          "mandate_failure": 15,
+          "mandate_failure": 27,
           "temporary_lockout": 29
         },
         "by_class_n": {
@@ -255,9 +255,9 @@
         }
       },
       "model": {
-        "recovery": 0.384236,
-        "net_value": 1934017.85,
-        "messages": 619,
+        "recovery": 0.415025,
+        "net_value": 2021966.25,
+        "messages": 908,
         "wasted": 0,
         "impossible": 0,
         "identity_ok": true,
@@ -268,13 +268,13 @@
         "by_class_messages": {
           "insufficient_funds": 50,
           "temporary_lockout": 45,
-          "customer_input_error": 118,
+          "customer_input_error": 203,
           "session_expiry": 103,
-          "instrument_invalid": 91,
-          "issuer_decline": 117,
+          "instrument_invalid": 163,
+          "issuer_decline": 235,
           "technical_downtime": 54,
           "limit_exceeded": 24,
-          "mandate_failure": 17
+          "mandate_failure": 31
         },
         "by_class_n": {
           "insufficient_funds": 206,
@@ -327,9 +327,9 @@
         }
       },
       "model": {
-        "recovery": 0.375616,
-        "net_value": 1506780.25,
-        "messages": 627,
+        "recovery": 0.399015,
+        "net_value": 1610172.05,
+        "messages": 912,
         "wasted": 0,
         "impossible": 0,
         "identity_ok": true,
@@ -338,15 +338,15 @@
           "issuer_decline": 1
         },
         "by_class_messages": {
-          "issuer_decline": 118,
+          "issuer_decline": 237,
           "technical_downtime": 67,
           "insufficient_funds": 55,
-          "customer_input_error": 115,
-          "instrument_invalid": 89,
+          "customer_input_error": 202,
+          "instrument_invalid": 155,
           "temporary_lockout": 39,
           "limit_exceeded": 19,
           "session_expiry": 109,
-          "mandate_failure": 16
+          "mandate_failure": 29
         },
         "by_class_n": {
           "issuer_decline": 119,
@@ -399,22 +399,22 @@
         }
       },
       "model": {
-        "recovery": 0.372966,
-        "net_value": 1250722.4,
-        "messages": 625,
+        "recovery": 0.414268,
+        "net_value": 1449795.55,
+        "messages": 923,
         "wasted": 0,
         "impossible": 0,
         "identity_ok": true,
         "n_suppressed": 0,
         "suppress_by_class": {},
         "by_class_messages": {
-          "issuer_decline": 112,
+          "issuer_decline": 224,
           "insufficient_funds": 41,
-          "customer_input_error": 118,
-          "instrument_invalid": 94,
+          "customer_input_error": 209,
+          "instrument_invalid": 174,
           "technical_downtime": 69,
           "limit_exceeded": 20,
-          "mandate_failure": 24,
+          "mandate_failure": 39,
           "temporary_lockout": 36,
           "session_expiry": 111
         },
