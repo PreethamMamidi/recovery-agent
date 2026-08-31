@@ -17,8 +17,12 @@ import random
 
 from .config import MANDATE_FRACTION
 
-# RBI Digital Payments – E-mandate Framework, 2026: subsequent recurring
-# transactions skip AFA up to ₹15,000. Above that the customer is present.
+# RBI Digital Payments – E-mandate Framework, 2026 (issued 21 Apr 2026,
+# effective immediately). Subsequent recurring transactions skip AFA up to
+# ₹15,000. Insurance premiums, mutual-fund subscriptions, and credit-card
+# bill payments sit at ₹1,00,000. This batch is a general subscription /
+# recurring merchant, so the ₹15,000 threshold applies.
+# Checked 31 August 2026.
 AFA_THRESHOLD = 15_000
 
 # reason -> NEVER | AFA | ANY. 74 rows, pasted from the audit sheet.

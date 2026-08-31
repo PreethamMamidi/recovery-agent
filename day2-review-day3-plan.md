@@ -2,7 +2,7 @@
 
 **Recovery Agent — Razorpay Buildathon Track 03**
 
-Plan written after the first Day 2 eval. Canonical numbers after later generator and agent work are in `README.md` and `results_after_rebaseline.json` (agent 41.5% / B 32.5% / +20.6 pp). Fix 7 sat at 38.6%; that snapshot is `results_before_rebaseline.json`.
+Plan written after the first Day 2 eval. Canonical numbers after later generator and agent work are in `README.md` and `results_after_trai.json` (agent 41.6% / B 32.5% / +20.7 pp). 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment. That snapshot is `results_after_rebaseline.json`. Fix 7 sat at 38.6%; that snapshot is `results_before_rebaseline.json`.
 
 ---
 

@@ -1,3 +1,5 @@
+streamlit
 lightgbm
 pandas
 scikit-learn
+faiss-cpu

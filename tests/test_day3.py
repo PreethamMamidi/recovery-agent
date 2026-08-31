@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
-from agent.actions import decision, validate
+from agent.actions import TERMINAL, decision, validate
 from agent.diagnose import REASON_TO_CLASS, assert_coverage, diagnose
 from agent.guardrails import (
     MAX_MESSAGES_PER_WEEK,
@@ -16,6 +16,7 @@ from agent.guardrails import (
 )
 from agent.loop import build_schedule
 from agent.policy import nearest_paydays, next_payday_guess, plan
+from audit.log import fetch_payment, log_decision, reset
 from eval.metrics import identity_mismatches, load_world, parse_bool, run_schedule
 from generator.config import ERROR_REASONS, load_failure_classes
 from generator.generate import generate
@@ -100,12 +101,27 @@ class GuardrailTests(unittest.TestCase):
         g = check(vis, self.cust, "insufficient_funds", d, ctx, self.at)
         self.assertEqual(g.reason, "attempt_budget")
 
-    def test_quiet_hours(self):
+    def test_quiet_hours_apply_to_promotional_only(self):
         vis = SimpleNamespace(has_active_mandate=True, amount=500, error_reason="x")
         d = decision("send_payment_link", channel="sms")
         night = datetime(2026, 8, 10, 23, 0, 0)
-        g = check(vis, self.cust, "session_expiry", d, self.ctx, night)
+        g = check(vis, self.cust, "session_expiry", d, self.ctx, night,
+                  category="service")
+        self.assertTrue(g.allowed)
+        g = check(vis, self.cust, "session_expiry", d, self.ctx, night,
+                  category="promotional")
         self.assertEqual(g.reason, "quiet_hours")
+
+    def test_dnd_suppresses_promotional_only(self):
+        vis = SimpleNamespace(has_active_mandate=True, amount=500, error_reason="x")
+        d = decision("send_payment_link", channel="sms")
+        dnd = {"preferred_channel": "sms", "opted_out": False, "dnd_registered": True}
+        g = check(vis, dnd, "session_expiry", d, self.ctx, self.at, category="service")
+        self.assertTrue(g.allowed)
+        g = check(vis, dnd, "session_expiry", d, self.ctx, self.at,
+                  category="promotional")
+        self.assertEqual(g.reason, "dnd_registry")
+        self.assertIsNone(g.executed)
 
     def test_contact_cap(self):
         vis = SimpleNamespace(has_active_mandate=True, amount=500, error_reason="x")
@@ -417,6 +433,21 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(diagnosed, "customer_input_error")
         executed = [s.executed.action for s in gated if s.executed]
         self.assertEqual(executed.count("send_payment_link"), 2)
+        self.assertEqual(executed[-1], "mark_uncollectible")
+        self.assertEqual(gated[-1].executed.args["reason"], "attempt_budget")
+
+    def test_give_up_bookmark_closes_with_attempt_budget(self):
+        world = load_world()
+        row = next(r for r in world["pay_vis"] if r["payment_id"] == "PAY_00011")
+        vis = payment_visible_from_row(row)
+        cust = world["customers"][vis.customer_id]
+        _, steps = build_schedule(vis, cust)
+        executed = [s for s in steps if s.executed]
+        self.assertEqual(vis.failure_class, "issuer_decline")
+        self.assertEqual(executed[-1].executed.action, "mark_uncollectible")
+        self.assertEqual(executed[-1].executed.args["reason"], "attempt_budget")
+        prior = [s.executed.action for s in executed[:-1]]
+        self.assertEqual(prior, ["send_payment_link", "send_payment_link"])
 
     def test_high_value_is_flagged_not_abandoned(self):
         vis = SimpleNamespace(
@@ -502,24 +533,95 @@ class ImportBoundaryTests(unittest.TestCase):
 class TraceTests(unittest.TestCase):
     def test_one_payment_has_diagnosed_gated_steps(self):
         world = load_world()
-        found = None
+        row = next(r for r in world["pay_vis"] if r["payment_id"] == "PAY_00071")
+        vis = payment_visible_from_row(row)
+        cust = world["customers"][vis.customer_id]
+        diagnosed, steps = build_schedule(vis, cust)
+        self.assertEqual(diagnosed, "insufficient_funds")
+        self.assertTrue(any(s.gate_result == "rejected" for s in steps))
+        self.assertTrue(any(s.gate_reason == "opted_out" for s in steps))
+        self.assertTrue(any(s.executed is not None for s in steps))
+
+    def test_every_payment_has_a_traceable_decision_chain(self):
+        """No treatment row may run out of schedule. Same shape as Bug 5: silence."""
+        world = load_world()
+        tmp = Path(tempfile.mkdtemp(prefix="audit_")) / "log.db"
+        conn = reset(tmp)
+        silent = []
+        empty = []
+        no_exec = []
+        n_t = 0
         for r in world["pay_vis"]:
-            if r["arm"] != "treatment" or r["has_active_mandate"] != "False":
+            if r["arm"] != "treatment":
                 continue
-            if r["failure_class"] != "insufficient_funds":
-                continue
+            n_t += 1
             vis = payment_visible_from_row(r)
             cust = world["customers"][vis.customer_id]
             diagnosed, steps = build_schedule(vis, cust)
-            if any(s.gate_result == "rejected" for s in steps) and any(
-                    s.executed is not None for s in steps):
-                found = (diagnosed, steps)
-                break
-        self.assertIsNotNone(found, "need a no-mandate NSF payment that hits the gate")
-        diagnosed, steps = found
-        self.assertEqual(diagnosed, "insufficient_funds")
-        self.assertTrue(any(s.gate_result == "rejected" for s in steps))
-        self.assertTrue(any(s.executed is not None for s in steps))
+            self.assertEqual(diagnosed, vis.failure_class, vis.payment_id)
+            if not steps:
+                empty.append(vis.payment_id)
+                continue
+            executed = [s for s in steps if s.executed]
+            for i, step in enumerate(steps, 1):
+                log_decision(
+                    conn,
+                    payment_id=vis.payment_id,
+                    attempt_number=step.attempt_number,
+                    timestamp=step.at.isoformat(timespec="seconds"),
+                    failure_class=step.diagnosed_class,
+                    chosen_action=step.proposed.action,
+                    action_args=step.proposed.args,
+                    gate_result=step.gate_result,
+                    gate_reason=step.gate_reason,
+                    executed=step.executed is not None,
+                    flagged_for_review=step.flagged_for_review,
+                )
+            if not executed:
+                no_exec.append(vis.payment_id)
+                continue
+            last = executed[-1].executed.action
+            if last not in TERMINAL:
+                silent.append(
+                    f"{vis.payment_id} {vis.failure_class} last={last}"
+                )
+        conn.commit()
+
+        for pid in [r["payment_id"] for r in world["pay_vis"] if r["arm"] == "treatment"]:
+            rows = fetch_payment(conn, pid)
+            self.assertTrue(rows, f"{pid} has no audit rows")
+            last_exec = [r for r in rows if r["executed"]]
+            self.assertTrue(last_exec, f"{pid} executed nothing")
+            self.assertIn(
+                last_exec[-1]["chosen_action"], TERMINAL,
+                f"{pid} audit chain ends on {last_exec[-1]['chosen_action']}",
+            )
+        conn.close()
+
+        self.assertGreater(n_t, 0)
+        self.assertEqual(empty, [], f"empty schedules: {empty[:10]}")
+        self.assertEqual(no_exec, [], f"nothing executed: {no_exec[:10]}")
+        self.assertEqual(
+            silent, [],
+            f"{len(silent)} payments ran out of schedule with no terminal "
+            f"action: {silent[:12]}",
+        )
+
+    def test_shorter_than_budget_still_closes(self):
+        vis = SimpleNamespace(
+            failed_at="2026-08-10T10:00:00", has_active_mandate=False,
+            error_reason="card_expired", amount=500, payment_id="PAY_T",
+            failure_class="instrument_invalid",
+        )
+        _, steps = build_schedule(
+            vis, {"preferred_channel": "sms", "opted_out": False})
+        executed = [s.executed for s in steps if s.executed]
+        self.assertEqual(executed[-1].action, "mark_uncollectible")
+        self.assertEqual(executed[-1].args["reason"], "schedule_exhausted")
+        self.assertEqual(
+            [d.action for d in executed[:-1]],
+            ["request_instrument_update", "request_instrument_update"],
+        )
 
 
 class PresenceTests(unittest.TestCase):

@@ -190,23 +190,23 @@ python -m eval.run_agent
 |---|---|---|---|---|---|---|---|---|
 | Control | 20.9% | - | 0 | 0 | 0 | 0 | 0 | 77,878 |
 | B | 32.5% | +11.6 pp | 426 | 1,094 | 813 | 3.08 | 0 | 1,377,187 |
-| **Agent** | **41.5%** | **+20.6 pp** | **0** | **0** | **951** | **2.82** | 0 | **1,657,339** |
+| **Agent** | **41.6%** | **+20.7 pp** | **0** | **0** | **949** | **2.81** | 0 | **1,657,412** |
 
 Agent beats B on recovery and on efficiency. Zero wasted debits, zero impossible debits, **zero downtime-with-mandate messages**, 27 gate rejections, 46 high-value rows flagged for review (policy still runs).
 
-Messages: agent **951** vs B 813. That exceeds B. The restraint claim was never “fewest messages” — it is messages-per-recovery and zero messages where they don’t help. Messages per recovery **2.82 vs 3.08**. Channel mix (preferred_channel, not a spray): 373 SMS / 464 WhatsApp / 114 email. B is 813 SMS. The 6h second ask on four customer-action classes is in `policy.py` (folded in after a no-model ablation showed it was a rule, not an ML result). Fix 7 sat at 38.6% / 639 messages; `results_before_rebaseline.json` holds that snapshot.
+Messages: agent **949** vs B 813. That exceeds B. The restraint claim was never “fewest messages” — it is messages-per-recovery and zero messages where they don’t help. Messages per recovery **2.81 vs 3.08**. Channel mix (preferred_channel, not a spray): 372 SMS / 463 WhatsApp / 114 email. B is 813 SMS. The 6h second ask on four customer-action classes is in `policy.py` (folded in after a no-model ablation showed it was a rule, not an ML result). Fix 7 sat at 38.6% / 639 messages; `results_before_rebaseline.json` holds that snapshot. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment.
 
 Where the taxonomy actually changes the action:
 
 | class | n | B | agent | what changed |
 |---|---|---|---|---|
 | `instrument_invalid` | 91 | 1.1% | **23.1%** | update request, no debit; 6h follow-up |
-| `mandate_failure` | 14 | 14.3% | **42.9%** | reauth, mandate gate demo; 6h follow-up |
+| `mandate_failure` | 14 | 14.3% | **42.9%** | reauth; policy never proposes a debit, so the mandate gate does not fire |
 | `insufficient_funds` | 198 | 21.7% | **29.3%** | nearest 1st/7th/15th (not `salary_day`) |
-| `technical_downtime` | 115 | 77.4% | **86.1%** | wait then backoff; no SMS if mandate |
+| `technical_downtime` | 115 | 77.4% | **85.2%** | wait then backoff; no SMS if mandate |
 | `temporary_lockout` | 27 | 59.3% | **81.5%** | exponential 2h/8h/32h |
 | `session_expiry` | 66 | 34.8% | **43.9%** | immediate then 6h (holds on 5/5 seeds) |
-| `customer_input_error` | 122 | 40.2% | **51.6%** | link then +6h |
+| `customer_input_error` | 122 | 40.2% | **53.3%** | link then +6h |
 | `limit_exceeded` | 42 | **59.5%** | 54.8% | 00:30 ladder; B’s 24/72/120h still leads |
 
 B still leads on `limit_exceeded` (59.5% vs 54.8% on 42 payments). Its 24/72/120h retries catch daily-cap resets the two-step 00:30 ladder misses. Matching it is possible; schedule-tuning stops here.
@@ -215,13 +215,21 @@ B still leads on `limit_exceeded` (59.5% vs 54.8% on 42 payments). Its 24/72/120
 
 Our schedules encode two stated priors — Indian salaries cluster at month-start, and issuer lockout windows are undocumented so backoff beats a fixed wait. Both hold across five unseen seeds, and we deliberately did not tune to the simulator's actual window bounds. The residual risk is that we've had several iterations on this data and the baselines have had none; on real data we'd expect the gap to narrow.
 
-Example gate rejection (`PAY_00071`): opted-out NSF → `retry_debit` rejected → `mark_uncollectible`.
+Example gate rejection (`PAY_00071`): opted-out NSF → `retry_debit` rejected → `mark_uncollectible`. Complement (`PAY_00062`): mandate_failure, policy goes straight to reauth — the gate is unnecessary on that row.
+
+### Regulatory (checked 31 August 2026)
+
+**RBI**, *Digital Payments – E-mandate Framework, 2026*, 21 April 2026 (effective immediately; consolidates eight earlier circulars). Recurring payments skip AFA up to **₹15,000**. Insurance premiums, mutual-fund subscriptions, and credit-card bill payments sit at ₹1 lakh. This batch is a **general subscription / recurring merchant**, so ₹15,000 is the right threshold (`AFA_THRESHOLD = 15000`). AFA is required for registration, modification or withdrawal, the first transaction, customer opt-out, and higher-value recurring transactions.
+
+Issuers must send a pre-debit notification at least 24 hours before a mandate debit, with merchant name, amount, date/time of debit, e-mandate reference, and reason. The agent logs `pre_debit_notification` as an audit row (not a conversion lever). Debits scheduled less than 24h out are flagged `pre_debit_window_violation` — 189 of 448 mandate debits on this batch, mostly the 4h/10h downtime and 2h/8h lockout retries.
+
+**TRAI.** Transactional and service SMS have no time restriction and reach DND subscribers. The 9am–9pm window and DND scrub apply to promotional traffic. A payment-failure notice is service-class. Mixing an offer into that message reclassifies it as Promotional. The bounded-offer validator is therefore doing compliance work, not just policy work: POL-002’s 5% waiver is promotional; a no-offer recovery message is not.
 
 ---
 
 ## Robustness (calibration and sensitivity)
 
-Headline numbers above are the canonical `data/` batch (seed 42, estimated mix). They are not replaced. The checks below write to `--out` directories and answer *"you made the data up"* without retuning policy. They were run on the Fix 7 agent (38.6%) and were not repeated after the second-ask rebaseline to 41.5%.
+Headline numbers above are the canonical `data/` batch (seed 42, estimated mix). They are not replaced. The checks below write to `--out` directories and answer *"you made the data up"* without retuning policy. They were run on the Fix 7 agent (38.6%) and were not repeated after the second-ask rebaseline (`results_after_rebaseline.json`).
 
 **Class mix.** Generation weights have a second file, `config/failure_classes_calibrated.csv`, anchored on NPCI's published business/technical decline split — 81.7% BD / 18.3% TD across the top 50 remitter banks (FinBox analysis of NPCI bank stats, Mar 2022–Mar 2023). `technical_downtime` at 18% matches NPCI's TD share. NPCI and Business Standard both name insufficient balance and wrong PIN as the top two reasons; those are the two largest calibrated classes at 28% and 17%. Card and mandate-lifecycle failures fall outside the UPI decline taxonomy and stay estimated. The largest weight move versus the estimated mix is 0.05. `p_resolves` is not changed in that file.
 
@@ -244,23 +252,38 @@ python -m unittest discover tests
 
 ## Day 5 — Propensity (optional; rules stay the default)
 
-The rule agent above is the floor: **41.5%**. A LightGBM propensity model (`P(recover | visible features, action, channel)`) was trained on seeds **101–108** only. Eval seeds 42 / 1 / 2 / 7 / 99 / 123 were never used to fit. Converting-step labels: ROC-AUC **0.778**, PR-AUC **0.409**.
+The rule agent above is the floor: **41.6%**. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment. A LightGBM propensity model (`P(recover | visible features, action, channel)`) was trained on seeds **101–108** only. Eval seeds 42 / 1 / 2 / 7 / 99 / 123 were never used to fit. Converting-step labels: ROC-AUC **0.778**, PR-AUC **0.409**. Those AUCs, and the 6/6 seed bar below, were measured against `results_after_rebaseline.json` and were not repeated after the TRAI send-time correction.
 
-Three applications, measured against the 41.5% floor, 5/6-seed bar:
+Three applications, measured against that pre-TRAI snapshot, 5/6-seed bar:
 
-- **Channel selection** — 6/6 rec and net (canonical **42.9%**). Not the default.
+- **Channel selection** — 6/6 rec and net on that floor. Live dashboard (TRAI 24/7): **43.9%**. Not the default.
 - **EV suppression** — no incremental effect (`p * amount` almost never fails at ₹0.05–1).
-- **Second-ask rank cut** — same 42.9% as channel, **848 vs 951** messages. Bottom quartile of `p(step=2)` is 100% `issuer_decline` on 6/6. Available, not the default.
+- **Second-ask rank cut** — same recovery as channel on the live batch, **837 vs 949** messages. Bottom quartile of `p(step=2)` is 100% `issuer_decline` on 6/6. Available, not the default.
 
 ```bash
-python -m eval.run_agent                                    # 41.5%
-python -m eval.run_agent --use-model --ml-app second_ask    # 42.9% on data/
+python -m eval.run_agent                                    # 41.6%
+python -m eval.run_agent --use-model --ml-app second_ask    # 43.9% on data/
 ```
 
 Full tables and the EV-floor finding: [day5-results.md](day5-results.md).
 
 ---
 
-## Next: Day 6
+## Day 6 — Dashboard
 
-Dashboard. Afternoon NLP/RAG from the Day 5 doc is still open. Headline to lead with: agent **41.5%**, lift **+20.6 pp**, wasted **0**. There is no `day6-day7-plan.md` in the repo yet; any mockup still showing 38.6% should use these numbers.
+Precompute once, then Streamlit reads disk. It never runs the batch.
+
+```bash
+python -m eval.precompute_dashboard
+streamlit run dashboard/app.py
+```
+
+Bookmarks: `PAY_00210` clean recovery, `PAY_00062` policy-not-gate, `PAY_00071` opt-out gate, `PAY_00026` downtime wait, `PAY_00011` give-up, `PAY_00002` high-value NSF, plus staged `PAY_HV` / `PAY_LV`. Headline: agent **41.6%**, lift **+20.7 pp**, wasted **0**.
+
+Failure demos, all landing in the same `decisions` table. Lead with the rogue composer (the model misbehaving, not infrastructure failing):
+
+```bash
+python -m agent.messaging --demo rogue          # validator rejects an invented offer
+python -m eval.run_agent --trace PAY_00071      # gate rejects a debit, live trace
+python -m agent.messaging --demo no-index       # retrieval fails, no-offer fallback
+```

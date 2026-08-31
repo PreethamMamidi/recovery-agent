@@ -1,0 +1,165 @@
+{
+  "name": "agent",
+  "n": 813,
+  "recovered": 357,
+  "recovery_rate": 0.439114,
+  "natural": 178,
+  "natural_rate": 0.218942,
+  "debit_attempts": 322,
+  "wasted_debits": 0,
+  "impossible_debits": 0,
+  "messages": 928,
+  "messages_sms": 58,
+  "messages_whatsapp": 839,
+  "messages_email": 31,
+  "messages_per_recovery": 2.5994,
+  "opted_out_triggered": 0,
+  "recovered_rupees": 1723487.0,
+  "cost": 1496.15,
+  "net_value": 1721990.85,
+  "by_class": {
+    "insufficient_funds": {
+      "n": 198,
+      "recovered": 59,
+      "recovery_rate": 0.29798,
+      "natural": 40,
+      "natural_rate": 0.20202,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 53,
+      "opt_outs": 0,
+      "net_value": 201963.8
+    },
+    "technical_downtime": {
+      "n": 115,
+      "recovered": 97,
+      "recovery_rate": 0.843478,
+      "natural": 53,
+      "natural_rate": 0.46087,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 60,
+      "opt_outs": 0,
+      "net_value": 512019.15
+    },
+    "temporary_lockout": {
+      "n": 27,
+      "recovered": 23,
+      "recovery_rate": 0.851852,
+      "natural": 14,
+      "natural_rate": 0.518519,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 35,
+      "opt_outs": 0,
+      "net_value": 176292.75
+    },
+    "customer_input_error": {
+      "n": 122,
+      "recovered": 70,
+      "recovery_rate": 0.57377,
+      "natural": 24,
+      "natural_rate": 0.196721,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 198,
+      "opt_outs": 0,
+      "net_value": 421344.55
+    },
+    "instrument_invalid": {
+      "n": 91,
+      "recovered": 27,
+      "recovery_rate": 0.296703,
+      "natural": 1,
+      "natural_rate": 0.010989,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 166,
+      "opt_outs": 0,
+      "net_value": 67401.6
+    },
+    "issuer_decline": {
+      "n": 138,
+      "recovered": 16,
+      "recovery_rate": 0.115942,
+      "natural": 16,
+      "natural_rate": 0.115942,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 270,
+      "opt_outs": 0,
+      "net_value": 89791.6
+    },
+    "session_expiry": {
+      "n": 66,
+      "recovered": 36,
+      "recovery_rate": 0.545455,
+      "natural": 16,
+      "natural_rate": 0.242424,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 101,
+      "opt_outs": 0,
+      "net_value": 169191.4
+    },
+    "limit_exceeded": {
+      "n": 42,
+      "recovered": 23,
+      "recovery_rate": 0.547619,
+      "natural": 12,
+      "natural_rate": 0.285714,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 22,
+      "opt_outs": 0,
+      "net_value": 68710.0
+    },
+    "mandate_failure": {
+      "n": 14,
+      "recovered": 6,
+      "recovery_rate": 0.428571,
+      "natural": 2,
+      "natural_rate": 0.142857,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 23,
+      "opt_outs": 0,
+      "net_value": 15276.0
+    }
+  },
+  "ml_app": "channel",
+  "channel_mix": {
+    "sms": 58,
+    "whatsapp": 839,
+    "email": 31
+  },
+  "cost_breakdown": {
+    "debits": 644.0,
+    "sms": 11.6,
+    "whatsapp": 839.0,
+    "email": 1.55,
+    "opt_out": 0.0,
+    "total": 1496.15
+  },
+  "messages_by_class": {
+    "insufficient_funds": 53,
+    "technical_downtime": 60,
+    "temporary_lockout": 35,
+    "customer_input_error": 198,
+    "instrument_invalid": 166,
+    "issuer_decline": 270,
+    "session_expiry": 101,
+    "limit_exceeded": 22,
+    "mandate_failure": 23
+  },
+  "close_reasons": {
+    "attempt_budget": 347,
+    "opted_out": 27,
+    "schedule_exhausted": 439,
+    "no_viable_action": 0
+  },
+  "gate_rejections": {
+    "opted_out": 27,
+    "offer_beyond_policy": 0
+  }
+}

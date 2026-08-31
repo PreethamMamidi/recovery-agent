@@ -1,6 +1,6 @@
 # Calibration and sensitivity results
 
-Robustness only. These tables were measured on the Fix 7 agent (**38.6%**). The canonical floor is now **41.5%** after folding the 6h second ask into `policy.py` — see `day5-results.md` and `results_after_rebaseline.json`. The runs below were not repeated; they still answer *"you made the data up"* for the class-mix and prior levers.
+Robustness only. These tables were measured on the Fix 7 agent (**38.6%**). The live floor is **41.6%**. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment. The runs below were not repeated; they still answer *"you made the data up"* for the class-mix and prior levers.
 
 Reproduce:
 
@@ -145,3 +145,7 @@ Accordingly, the simulator is the one synthetic component — and the one replac
 Three reasons. The class mix is calibrated against published NPCI decline data and differs from our original estimate by at most five points. Shifting the person-side natural-recovery weights by ±0.1 moves control by ten points and leaves the agent–baseline gap essentially unchanged; shifting `p_resolves` ±0.1 does the same for the gap. And the measurement design carries over to real data with no assumptions — the control arm needs no modelling, reality resolves the outcomes.
 
 What we cannot claim is that our absolute recovery rates would transfer. We claim the mechanism and the measurement do.
+
+**"What about compliance?"**
+
+We implemented it and it pushed back. Two things surfaced. Our quiet-hours guardrail was stricter than TRAI requires — payment failure notifications are service-class, exempt from the 9–9 window and DND — and removing the blanket block recovered a payment. And our retry timing conflicts with RBI's 24-hour pre-debit notification requirement on 42% of mandate debits. We disclosed that rather than retiming, because the fix costs recovery and the constraint is worth stating.

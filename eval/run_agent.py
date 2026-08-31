@@ -13,11 +13,12 @@ import argparse
 import csv
 import random
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
-from agent.actions import MESSAGE_ACTIONS, Decision
+from agent.actions import DEBIT_ACTIONS, MESSAGE_ACTIONS, Decision
 from agent.loop import build_schedule, second_ask_p2
+from agent.messaging import generate
 from agent.ml_options import ML_APPS, MlOptions
 from audit.log import count_flagged, count_rejections, fetch_payment, log_decision, reset
 from baselines.aggressive_dunning import schedule as schedule_c
@@ -52,6 +53,65 @@ def _to_sim_action(at, decision: Decision) -> Action:
     return Action(name=decision.action, at=at, args=dict(decision.args))
 
 
+def _log_pre_debit(conn, vis, debit_at: datetime, diagnosed: str,
+                   attempt: int) -> dict:
+    """RBI e-mandate pre-transaction notice. Audit only — not a sim action."""
+    failed_at = datetime.fromisoformat(vis.failed_at)
+    notice_at = debit_at - timedelta(hours=24)
+    violation = notice_at < failed_at
+    log_at = failed_at if violation else notice_at
+    args = {
+        "merchant": "your merchant",
+        "amount": int(vis.amount),
+        "debit_at": debit_at.isoformat(timespec="seconds"),
+        "e_mandate_ref": f"EM-{vis.payment_id}",
+        "reason": vis.error_reason,
+        "fields_present": True,
+        "window_violation": violation,
+    }
+    log_decision(
+        conn,
+        payment_id=vis.payment_id,
+        attempt_number=attempt,
+        timestamp=log_at.isoformat(timespec="seconds"),
+        failure_class=diagnosed,
+        chosen_action="pre_debit_notification",
+        action_args=args,
+        gate_result="allowed",
+        gate_reason="pre_debit_window_violation" if violation else "ok",
+        executed=True,
+    )
+    return args
+
+
+def _trai_counts(steps) -> dict:
+    """Executed sends, plus promotional traffic the TRAI window/DND blocked."""
+    service = promotional = shifted_or_suppressed = 0
+    for step in steps:
+        promo = step.category == "promotional" or step.gate_reason in {
+            "dnd_registry", "quiet_hours",
+        }
+        sent = (
+            step.executed is not None
+            and step.executed.action in MESSAGE_ACTIONS
+        )
+        blocked = step.gate_reason in {"dnd_registry", "quiet_hours"}
+        if sent and promo:
+            promotional += 1
+            if step.shifted:
+                shifted_or_suppressed += 1
+        elif sent:
+            service += 1
+        elif blocked:
+            promotional += 1
+            shifted_or_suppressed += 1
+    return {
+        "service": service,
+        "promotional": promotional,
+        "shifted_or_suppressed": shifted_or_suppressed,
+    }
+
+
 def _decision_row(vis, cust, step, recovered: bool, seed: int | None) -> dict:
     ch = step.executed.args.get("channel", "") if step.executed else ""
     delay = delay_hours_of(vis, step.at, step.executed or step.proposed)
@@ -74,13 +134,18 @@ def _decision_row(vis, cust, step, recovered: bool, seed: int | None) -> dict:
 
 def run_agent(world, ml: MlOptions | None = None,
               log_path: Path | None = None,
-              seed: int | None = None) -> tuple[PolicyTotals, object]:
+              seed: int | None = None,
+              trace_id: str | None = None) -> tuple[PolicyTotals, object]:
     totals = PolicyTotals(name="agent")
     conn = reset()
     classes = world["classes"]
     downtime_messages = 0
     traced_id = None
     logged: list[dict] = []
+    headers: dict[str, dict] = {}
+    trai = {"service": 0, "promotional": 0, "shifted_or_suppressed": 0}
+    pre_debit_n = 0
+    pre_debit_violations = 0
     ml = ml or MlOptions()
     if ml.dropped is None:
         ml.dropped = []
@@ -115,10 +180,28 @@ def run_agent(world, ml: MlOptions | None = None,
             continue
         cust = world["customers"][vis.customer_id]
         diagnosed, steps = build_schedule(vis, cust, ml=ml)
+        for k, v in _trai_counts(steps).items():
+            trai[k] += v
 
         sim_actions = []
         for step in steps:
             executed = step.executed is not None
+            args = dict((step.executed or step.proposed).args)
+            if (executed and step.executed is not None
+                    and step.executed.action in MESSAGE_ACTIONS):
+                # Copy only — does not choose the action.
+                msg = generate(vis, cust)
+                args["policy_id"] = msg.policy_id
+                args["template_id"] = msg.template_id
+                args["trai_category"] = step.category
+            if (executed and step.executed is not None
+                    and step.executed.action in DEBIT_ACTIONS
+                    and vis.has_active_mandate):
+                notice = _log_pre_debit(
+                    conn, vis, step.at, step.diagnosed_class, step.attempt_number,
+                )
+                pre_debit_n += 1
+                pre_debit_violations += int(notice["window_violation"])
             log_decision(
                 conn,
                 payment_id=vis.payment_id,
@@ -126,7 +209,7 @@ def run_agent(world, ml: MlOptions | None = None,
                 timestamp=step.at.isoformat(timespec="seconds"),
                 failure_class=step.diagnosed_class,
                 chosen_action=step.proposed.action,
-                action_args=step.proposed.args,
+                action_args=args,
                 gate_result=step.gate_result,
                 gate_reason=step.gate_reason,
                 executed=executed,
@@ -148,6 +231,19 @@ def run_agent(world, ml: MlOptions | None = None,
         opted = parse_bool(cust["opted_out"])
         out = respond(vis, hid, lat, fc, gt, sim_actions, opted_out=opted)
         add_row(totals, score_outcome(vis, cust, gt, out))
+        headers[vis.payment_id] = {
+            "amount": int(vis.amount),
+            "method": getattr(vis, "method", ""),
+            "failed_at": vis.failed_at,
+            "error_reason": vis.error_reason,
+            "failure_class": vis.failure_class,
+            "has_active_mandate": bool(vis.has_active_mandate),
+            "customer_id": vis.customer_id,
+            "preferred_channel": cust.get("preferred_channel", ""),
+            "recovered": bool(out.recovered),
+            "recovered_at": out.recovered_at,
+            "source": out.source,
+        }
         if log_path is not None:
             executed_logged = []
             for i, step in enumerate(steps):
@@ -169,7 +265,10 @@ def run_agent(world, ml: MlOptions | None = None,
                 logged.append(_decision_row(vis, cust, step, bool(y), seed))
                 logged[-1]["step_index"] = i
 
-        if traced_id is None and any(s.gate_result == "rejected" for s in steps):
+        if trace_id and vis.payment_id == trace_id:
+            traced_id = vis.payment_id
+        elif traced_id is None and trace_id is None and any(
+                s.gate_result == "rejected" for s in steps):
             traced_id = vis.payment_id
 
         for step in steps:
@@ -192,7 +291,11 @@ def run_agent(world, ml: MlOptions | None = None,
     totals.rejections = count_rejections(conn)  # type: ignore[attr-defined]
     totals.flagged_for_review = count_flagged(conn)  # type: ignore[attr-defined]
     totals.traced_id = traced_id  # type: ignore[attr-defined]
+    totals.trai = trai  # type: ignore[attr-defined]
+    totals.pre_debit_notifications = pre_debit_n  # type: ignore[attr-defined]
+    totals.pre_debit_window_violations = pre_debit_violations  # type: ignore[attr-defined]
     totals.conn = conn  # type: ignore[attr-defined]
+    totals.payment_headers = headers  # type: ignore[attr-defined]
     dropped = list(ml.dropped) if (ml and ml.dropped) else []
     by_cls: dict[str, int] = {}
     for cls, _reason in dropped:
@@ -259,6 +362,11 @@ def main(argv: list[str] | None = None) -> int:
         "--p2-percentile", type=float, default=None,
         help="second_ask only: drop extra asks with p(step=2) at or below this "
              "percentile of the batch. Diagnostic rank filter; off by default.")
+    ap.add_argument(
+        "--trace", default=None,
+        help="Print this payment's audit chain after the batch "
+             "(e.g. PAY_00071). Default: first gate rejection.",
+    )
     args = ap.parse_args(argv)
     if args.ml_app == "unconditional_second_ask" and args.use_model:
         print("  NOTE  unconditional_second_ask is a no-model ablation; "
@@ -282,6 +390,7 @@ def main(argv: list[str] | None = None) -> int:
         world, ml=ml,
         log_path=Path(args.log_decisions) if args.log_decisions else None,
         seed=args.seed,
+        trace_id=args.trace,
     )
 
     print(f"\n  {len(world['pay_vis'])} payments · control {ctl.n}  |  "
@@ -320,6 +429,9 @@ def main(argv: list[str] | None = None) -> int:
     nsf_rate = rate(nsf.get("recovered", 0), nsf.get("n", 0))
     if nsf_rate > 0.45:
         errors.append(f"insufficient_funds {nsf_rate:.1%} looks leaked (>45%)")
+
+    if args.trace and agent.traced_id != args.trace:
+        errors.append(f"--trace {args.trace} is not in this batch")
 
     if agent.traced_id:  # type: ignore[attr-defined]
         _print_trace(conn, agent.traced_id)

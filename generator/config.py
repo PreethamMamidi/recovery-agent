@@ -230,11 +230,14 @@ DELIBERATE_ABANDON_REASONS = {"payment_cancelled"}
 # Mandate refusal, as opposed to a timeout - it will not reverse in minutes.
 MANDATE_REFUSAL_REASONS = {"mandate_creation_declined"}
 
-# RBI Digital Payments – E-mandate Framework, 2026 (effective 21 Apr 2026):
-# subsequent recurring transactions may skip AFA up to ₹15,000. Above that
-# the customer is present (PIN/OTP), so a checkout-style input error is
-# possible on a mandate debit. Insurance/MF/CC-bill sit at ₹1,00,000; we
-# use the general threshold because this batch is not those categories.
+# RBI Digital Payments – E-mandate Framework, 2026 (issued 21 Apr 2026,
+# effective immediately): subsequent recurring transactions may skip AFA
+# up to ₹15,000. Above that the customer is present (PIN/OTP), so a
+# checkout-style input error is possible on a mandate debit. Insurance
+# premiums, mutual-fund subscriptions, and credit-card bills sit at
+# ₹1,00,000; we use ₹15,000 because this batch is a general subscription
+# / recurring merchant, not those carve-out categories.
+# Checked 31 August 2026.
 AFA_THRESHOLD_INR = 15000
 
 # Checkout-page session errors: nobody cancels a debit that runs while

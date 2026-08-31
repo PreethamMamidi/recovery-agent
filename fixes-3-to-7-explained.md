@@ -2,7 +2,7 @@
 
 **Recovery Agent — Razorpay Buildathon Track 03**
 
-A record of five changes, what each was, why it mattered, and what would have happened without it. None of them was a bug in the agent. Fix 7 landed at **38.6%**. The canonical floor is now **41.5%** after folding the customer-action 6h second ask into `policy.py` — see `day5-results.md`. Numbers in this file are the Fix 7 snapshot.
+A record of five changes, what each was, why it mattered, and what would have happened without it. None of them was a bug in the agent. Fix 7 landed at **38.6%**. The live floor is **41.6%**. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment. Numbers in this file are the Fix 7 snapshot.
 
 ---
 

@@ -360,17 +360,19 @@ If the ML layer isn't beating Day 3's rules, **keep the rules as your headline**
 
 - **Code freeze by midday**
 - Finalise: aggregate lift, per-class lift, net value, honest exception list
-- "What we'd do next" slide: real webhook integration, live Razorpay downtime signals, uplift in production, multi-merchant policy tenancy
+- "What we'd do next":
+  - Pre-debit notification vs retry timing. RBI's 2026 e-mandate framework requires 24 hours' notice before every mandate debit. Our retry ladders fire at 4h/10h for downtime and 2h/8h for lockout — timings tuned to when the underlying blocker clears. 189 of 448 mandate debits in this batch would violate the notification requirement. A production deployment needs either 24h notice per attempt, which costs most of the downtime and lockout recovery, or a mandate structure that pre-notifies a retry window rather than each individual attempt. We found this by implementing the requirement rather than describing it.
+  - Real webhook integration, live Razorpay downtime signals, uplift in production, multi-merchant policy tenancy
 - Rehearse 3× against a clock
 
 ### Demo script (5 min)
 
-1. **The problem, one case.** Expired card. Fixed-retry burns 3 attempts, recovers nothing. *(30s)*
-2. **Same case, your agent.** Diagnosed `instrument_invalid` → skips retry → instrument-update request → ₹2,400 recovered. Show the timeline. *(60s)*
-3. **Restraint.** Downtime failure, agent chose to wait, zero messages, payment cleared itself. *(45s)*
-4. **The gate firing.** No mandate → retry rejected → fell back to a payment link. *(45s)*
-5. **The numbers.** Aggregate lift vs control, then the per-class table. *(60s)*
-6. **The stopping list.** N marked uncollectible, with reasons. "The agent knows when to stop." *(30s)*
+1. **The problem, one case.** `PAY_00210` expired card. B retries the dead instrument. *(30s)*
+2. **Same case, your agent.** Diagnosed `instrument_invalid` → POL-011 instrument-update → recovered. Show the timeline. *(60s)*
+3. **Restraint.** `PAY_00026` downtime with mandate: wait, zero messages, then retry. *(45s)*
+4. **Two sides of the gate.** `PAY_00062`: policy never proposes an illegal debit. `PAY_00071`: opted-out NSF, `retry_debit` rejected, `mark_uncollectible`. Then `python -m agent.messaging --demo rogue` — the validator, not a prompt. *(60s)*
+5. **The numbers.** Agent **41.6%**, lift **+20.7 pp**, wasted **0**, 949 messages. TRAI: 3 promotional, 0 shifted. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment. *(45s)*
+6. **The stopping list.** Close reasons 439 / 347 / 27 / 0. "The agent knows when to stop." *(30s)*
 
 ---
 

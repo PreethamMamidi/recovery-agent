@@ -2,7 +2,7 @@
 
 **Recovery Agent — Razorpay Buildathon Track 03**
 
-Plan written against the Fix 7 floor (38.6%). Canonical headlines are now **41.5%** after the second-ask rebaseline (`results_after_rebaseline.json`). These robustness runs were not repeated; they still isolate class-mix and prior levers.
+Plan written against the Fix 7 floor (38.6%). Canonical headlines are now **41.6%**. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment. These robustness runs were not repeated; they still isolate class-mix and prior levers.
 
 Two additions that answer *"but you made the data up."* Neither changes the agent. Both are cheap.
 
@@ -15,7 +15,7 @@ Two additions that answer *"but you made the data up."* Neither changes the agen
 
 ### What is at risk
 
-Changing `gen_weight` changes the **class mix of the batch**, which changes **every headline number you have published.** 41.5%, 32.5%, +20.6pp, ₹1,657,339 — all of them move. The Fix 7 snapshot (38.6% / +17.8pp / ₹1,564,615) is `results_before_rebaseline.json`.
+Changing `gen_weight` changes the **class mix of the batch**, which changes **every headline number you have published.** 41.6%, 32.5%, +20.7pp, ₹1,657,412 — all of them move. The pre-TRAI snapshot (41.5% / +20.6pp / ₹1,657,339) is `results_after_rebaseline.json`. The Fix 7 snapshot (38.6% / +17.8pp / ₹1,564,615) is `results_before_rebaseline.json`.
 
 You are at Day 5/6 with those numbers in the README, three planning docs, and several JSON snapshots. Re-baselining now is avoidable risk.
 

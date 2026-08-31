@@ -2,9 +2,9 @@
 
 NLP / RAG / Hinglish / reply parser / uplift were out of this pass.
 
-After the ablation showed the second-ask gain was a rule and not a model result, we folded it into `policy.py`. The rule floor is now **41.5%** (was 38.6% at Fix 7). Model apps are measured against the new floor; `results_before_rebaseline.json` holds the prior numbers.
+After the ablation showed the second-ask gain was a rule and not a model result, we folded it into `policy.py`. The live rule floor is now **41.6%** (was 38.6% at Fix 7). 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment. That snapshot is `results_after_rebaseline.json`; `results_before_rebaseline.json` holds Fix 7. Model apps below were measured against the 41.5% snapshot and were not repeated after the TRAI send-time correction.
 
-The rule agent on canonical `data/` is still the default: **41.5%**, B **32.5%**, lift **+20.6 pp**, wasted **0**, impossible **0**, messages **951**. `python -m eval.run_agent` does not load the model.
+The rule agent on canonical `data/` is still the default: **41.6%**, B **32.5%**, lift **+20.7 pp**, wasted **0**, impossible **0**, messages **949**. `python -m eval.run_agent` does not load the model.
 
 Train seeds: **101–108** only. Eval seeds **42, 1, 2, 7, 99, 123** were never used for fit or threshold search.
 
@@ -14,12 +14,14 @@ Two findings. The 3.5pp headline gain was a rule change — an unconditional sec
 pip install -r requirements.txt
 python -m eval.run_train_data          # data/train_S, 30% channel exploration
 python -m model.train                  # converting-step labels
-python -m eval.run_agent               # 41.5% rule floor
+python -m eval.run_agent               # 41.6% rule floor
 python -m eval.compare_ml --ml-app channel
 python -m eval.compare_ml --ml-app suppress
 python -m eval.compare_ml --ml-app second_ask
 python -m eval.compare_ml --ml-app second_ask --p2-percentile 25
 python -m eval.run_agent --use-model --ml-app second_ask
+python -m agent.messaging --demo bounded   # POL-002 vs POL-001; does not score
+python -m agent.messaging --demo rogue     # unauthorised offer; validator + audit row
 ```
 
 ---
@@ -34,9 +36,9 @@ No model in the path. Same 6h follow-up on `customer_input_error`, `issuer_decli
 | rules + 6h second ask | **41.5%** | +1.5 to +4.1 pp, **6/6** |
 | rules + model-filtered 2nd ask (published smeared-label run) | **42.1%** | +2.7 to +4.9 pp, 6/6 |
 
-The middle row is **41.5%**, not 40%. Of the 3.5 pp headline jump, **2.8 pp is the extra ask** and **0.6 pp is channel mix**. Issuer doubled messages for no recovery either way (11.6% both).
+The middle row is **41.5%**, not 40% — that is `results_after_rebaseline.json`. Of the 3.5 pp headline jump, **2.8 pp is the extra ask** and **0.6 pp is channel mix**. Issuer doubled messages for no recovery either way (11.6% both).
 
-That is a rule result. It is now the default `python -m eval.run_agent` path. Wasted / impossible stayed 0. Identity 1000/1000. Messages 951 vs B 813; messages-per-recovery **2.82 vs 3.08**.
+That is a rule result. It is now the default `python -m eval.run_agent` path. Wasted / impossible stayed 0. Identity 1000/1000. Messages 951 vs B 813; messages-per-recovery **2.82 vs 3.08**. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment. Live: **41.6% / 949**.
 
 Source: `eval/ml_second_ask_ablation.json`, then `results_after_rebaseline.json`. What the converting-step model does with that extra ask is Item 3.
 
@@ -125,6 +127,8 @@ The class pattern flipped to issuer, but the floor barely fires — 0–1 drop p
 
 ### Path: lift EV floor (prior)
 
+Predates the re-baseline. Not re-run against 41.5% — already rejected (wrong class, 41.1% < unconditional). Numbers below are vs Fix 7 (38.6%).
+
 ```
 lift = p(step=2) - p(step=1)
 send if lift * amount > message_cost
@@ -172,7 +176,7 @@ Rec **6/6**. Net **6/6** (seed 2 net now clears; it lost against Fix 7). Canonic
 
 **Feature drop.** Retrain without `amount` and `lifetime_value`: ROC-AUC **0.783** (held). `log_amount` absorbed the ticket-size split. Dropping `amount`, `log_amount`, and `lifetime_value`: still **0.783**. Signal is timing (`delay_hours`) and customer history, not ticket size. One sentence: the model is not a dressed-up amount rule.
 
-**Isotonic calibration** (`CalibratedClassifierCV(..., method="isotonic", cv="prefit")` on val). Raw top decile 0.81 pred vs 0.48 actual; isotonic 0.50 vs 0.50. Channel app with `--calibrated`: seed 42 rec **38.7%**, net **1,479,740** (down vs rules). Rec still 6/6; canonical net worse. Calibration fixed the plot and did not rescue EV. Uncalibrated channel is the better of the two.
+**Isotonic calibration** (`CalibratedClassifierCV(..., method="isotonic", cv="prefit")` on val). Predates the re-baseline. Not re-run against 41.5% — already rejected (canonical net dropped vs Fix 7). Raw top decile 0.81 pred vs 0.48 actual; isotonic 0.50 vs 0.50. Channel app with `--calibrated`: seed 42 rec **38.7%**, net **1,479,740** (down vs the 38.6% floor). Rec still 6/6; canonical net worse. Calibration fixed the plot and did not rescue EV. Uncalibrated channel is the better of the two.
 
 ---
 
@@ -180,7 +184,7 @@ Rec **6/6**. Net **6/6** (seed 2 net now clears; it lost against Fix 7). Canonic
 
 | App | 5/6? | Ship as default? |
 |---|---|---|
-| 6h second ask (rule) | Yes (rec and net) | **Shipped.** 41.5% on seed 42. In `policy.py`. |
+| 6h second ask (rule) | Yes (rec and net) | **Shipped.** 41.6% on seed 42. In `policy.py`. |
 | channel | Yes (rec 6/6, net 6/6) | No — +1.4 pp over the new floor; WhatsApp mix is a cost bet |
 | suppress | Same as channel | No — EV floor still dead |
 | second_ask (model + p2 EV floor) | Yes vs new floor | No — floor does not fire (0–1 drop). The rec gain is channel mix. |
@@ -192,8 +196,45 @@ Rec **6/6**. Net **6/6** (seed 2 net now clears; it lost against Fix 7). Canonic
 
 ---
 
+## Item 5 — Bounded offers (RAG + DLT templates)
+
+Copy only. Retrieval is keyed on `(failure_class, customer_tier, amount_band)`. Most chunks say **no offer permitted**. If retrieval returns nothing, generation uses a no-offer template — never an unbounded LLM call.
+
+Corpus: `config/merchant_policy.md`. Index: FAISS over TF-IDF when the extras are installed; exact metadata match is the authority either way.
+
+```bash
+python -m agent.messaging --demo bounded
+python -m agent.messaging --demo rogue
+```
+
+Beat 1 — same code path, different chunk: staged ₹40,000 (`PAY_HV`) retrieves POL-002; staged ₹800 (`PAY_LV`) retrieves POL-001. Then a real row from `data/`: `PAY_00002` (₹46,535 NSF) retrieves POL-002 the same way.
+
+Beat 2 — the generator fails, not the index. `--demo rogue` patches the composer to `"Enjoy 10% off today."` on `PAY_LV`. POL-001 is still retrieved; `no_offer_beyond` rejects; the same `decisions` table as the 27 gate rejections records `gate_result=rejected` / `gate_reason=offer_beyond_policy`; the static no-offer phrase is what goes out. No `%` in the body.
+
+The bound isn't a prompt instruction, it's a validator on the output — so it holds whether the generator is well-behaved or not.
+
+Bookmarks live in `config/demo_cases.json`:
+
+- `PAY_00210` clean recovery (expired card → instrument update)
+- `PAY_00062` gate rejection with fallback (mandate_gate → reauth)
+- `PAY_00026` deliberate restraint (downtime wait, zero messages)
+- `PAY_00011` correct give-up (`mark_uncollectible` / `attempt_budget` after two issuer asks)
+- `PAY_00002` high-value flag (₹46,535 NSF) — also the batch POL-002 case
+
+Staged pair `PAY_HV` / `PAY_LV` stays for the 30-second round-number demo.
+
+`reason_phrase` is the only free slot (≤60 chars, prohibited-claim list, no offer beyond `permitted`). Rejection logs and falls back to a static phrase per class. `tests/test_messaging.py` encodes the bound: `test_generation_never_offers_without_policy`.
+
+Not wired into `policy.py` or `build_schedule`. Seed 42 is **41.6%**, 949 messages, wasted 0, impossible 0. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment.
+
+---
+
 ## Day 7 Q&A
 
 **Did the ML help?**
 
 Partly. The recovery gain was a rule change the model wrapped. But the model does one thing the rules cannot — it identifies which second asks are futile, with perfect class separation on unseen seeds, at zero recovery cost. We couldn't ship that as an EV filter because at ₹0.05 a message nothing fails the cost test, which is itself a finding about where EV-based targeting applies.
+
+**What about compliance?**
+
+We implemented it and it pushed back. Two things surfaced. Our quiet-hours guardrail was stricter than TRAI requires — payment failure notifications are service-class, exempt from the 9–9 window and DND — and removing the blanket block recovered a payment. And our retry timing conflicts with RBI's 24-hour pre-debit notification requirement on 42% of mandate debits. We disclosed that rather than retiming, because the fix costs recovery and the constraint is worth stating.

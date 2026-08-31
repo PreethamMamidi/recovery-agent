@@ -1,0 +1,67 @@
+{
+  "day6_stories": [
+    {
+      "id": "PAY_00210",
+      "story": "clean_recovery",
+      "title": "Expired card recovered",
+      "note": "card_expired. Agent skips debit, sends instrument-update; customer replaces the card. B would have retried the dead instrument."
+    },
+    {
+      "id": "PAY_00062",
+      "story": "gate_fallback",
+      "title": "Policy, not gate",
+      "note": "mandate_creation_failed, no stored authorisation. Policy never proposes retry_debit — it goes straight to request_mandate_reauth. The mandate gate exists; on this row it never has to fire."
+    },
+    {
+      "id": "PAY_00071",
+      "story": "opt_out_gate",
+      "title": "Opt-out gate",
+      "note": "opted-out NSF. Policy proposed retry_debit; gate rejected it; mark_uncollectible(opted_out). The illegal debit never ran."
+    },
+    {
+      "id": "PAY_00026",
+      "story": "restraint",
+      "title": "Downtime wait",
+      "note": "technical_downtime with mandate: wait_for_downtime_recovery, zero messages, then retry. Did not contact a blameless customer during the outage."
+    },
+    {
+      "id": "PAY_00011",
+      "story": "give_up",
+      "title": "Attempts exhausted",
+      "note": "issuer_decline. Two payment-link asks, then mark_uncollectible(attempt_budget). The agent knows when to stop."
+    },
+    {
+      "id": "PAY_00002",
+      "story": "high_value",
+      "title": "High-value NSF",
+      "note": "₹46,535 insufficient_funds, flagged for review. Flag is audit, not a freeze. Same id retrieves POL-002."
+    }
+  ],
+  "bounded_offers": [
+    {
+      "id": "PAY_HV",
+      "amount": 40000,
+      "failure_class": "insufficient_funds",
+      "lifetime_value": 25000,
+      "name": "Priya",
+      "chunk": "POL-002",
+      "note": "Staged ₹40,000 NSF → POL-002; 5% waiver with review flag."
+    },
+    {
+      "id": "PAY_LV",
+      "amount": 800,
+      "failure_class": "insufficient_funds",
+      "lifetime_value": 800,
+      "name": "Amit",
+      "chunk": "POL-001",
+      "note": "Staged ₹800 NSF → POL-001; no offer. Rogue-composer beat uses this id."
+    },
+    {
+      "id": "PAY_00002",
+      "from_batch": true,
+      "chunk": "POL-002",
+      "name": "there",
+      "note": "Canonical batch, ₹46,535 NSF. Same retrieval key as PAY_HV; proves POL-002 on a real row."
+    }
+  ]
+}

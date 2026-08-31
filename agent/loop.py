@@ -13,6 +13,7 @@ from agent.guardrails import (
     apply_quiet_hours_shift,
     check,
 )
+from agent.messaging import generate, trai_category
 from agent.ml_options import SECOND_ASK_CLASSES, MlOptions
 from agent.policy import Planned, plan
 from generator.config import MEASUREMENT_WINDOW_DAYS, load_failure_classes
@@ -34,16 +35,49 @@ class Step:
     diagnosed_class: str
     attempt_number: int
     flagged_for_review: bool = False
+    category: str = "service"
+    shifted: bool = False
 
 
 def _record(steps, at, proposed, executed, result, reason, diagnosed, attempt,
-            flagged: bool = False) -> None:
+            flagged: bool = False, *, category: str = "service",
+            shifted: bool = False) -> None:
     steps.append(Step(
         at=at, proposed=proposed, executed=executed,
         gate_result=result, gate_reason=reason,
         diagnosed_class=diagnosed, attempt_number=attempt,
         flagged_for_review=flagged,
+        category=category, shifted=shifted,
     ))
+
+
+def _close(steps, at: datetime, diagnosed: str, ctx: RunContext,
+           flagged: bool, reason: str) -> None:
+    """Write a terminal action. Silence here is how a case disappears from the log."""
+    stop = decision("mark_uncollectible", reason=reason)
+    _record(steps, at + timedelta(seconds=1), stop, stop, "allowed", "ok",
+            diagnosed, ctx.attempt_number, flagged)
+
+
+def _close_exhausted(steps, at: datetime, diagnosed: str, ctx: RunContext,
+                     flagged: bool) -> None:
+    _close(steps, at, diagnosed, ctx, flagged, "attempt_budget")
+
+
+def _ensure_terminal(steps, *, failed_at: datetime, diagnosed: str,
+                     ctx: RunContext, flagged: bool) -> None:
+    """Every payment ends in mark_uncollectible or escalate. No silent run-out."""
+    executed = [s for s in steps if s.executed]
+    last = executed[-1] if executed else None
+    if last is not None and last.executed.action in TERMINAL:
+        return
+    if last is None:
+        reason = "no_viable_action"
+        at = steps[-1].at if steps else failed_at
+    else:
+        reason = "schedule_exhausted"
+        at = last.at
+    _close(steps, at, diagnosed, ctx, flagged, reason)
 
 
 def _consume(ctx: RunContext, executed: Decision, max_attempts: int) -> bool:
@@ -153,6 +187,12 @@ def _rewrite_messages(vis, customer: dict, items: list[Planned],
     return out
 
 
+def _trai_category(vis, customer: dict, proposed: Decision) -> str:
+    if proposed.action not in MESSAGE_ACTIONS:
+        return "service"
+    return trai_category(generate(vis, customer).body)
+
+
 def build_schedule(vis, customer: dict,
                    ml: MlOptions | None = None) -> tuple[str, list[Step]]:
     ml = ml or MlOptions()
@@ -176,31 +216,48 @@ def build_schedule(vis, customer: dict,
         if at < failed_at or at > window_end:
             continue
         proposed = item.decision
-        at = apply_quiet_hours_shift(at, proposed)
-        gate = check(vis, customer, diagnosed, proposed, ctx, at)
+        planned_at = at
+        category = _trai_category(vis, customer, proposed)
+        at = apply_quiet_hours_shift(at, proposed, category=category)
+        shifted = at != planned_at
+        gate = check(vis, customer, diagnosed, proposed, ctx, at,
+                     category=category)
 
         if gate.allowed and gate.executed is not None:
             _record(steps, at, proposed, gate.executed, "allowed", gate.reason,
-                    diagnosed, ctx.attempt_number, flagged)
+                    diagnosed, ctx.attempt_number, flagged,
+                    category=category, shifted=shifted)
             if _consume(ctx, gate.executed, fc.max_attempts):
+                if gate.executed.action not in TERMINAL:
+                    _close_exhausted(steps, at, diagnosed, ctx, flagged)
                 break
             continue
 
         _record(steps, at, proposed, None, "rejected", gate.reason,
-                diagnosed, ctx.attempt_number, flagged)
+                diagnosed, ctx.attempt_number, flagged,
+                category=category, shifted=shifted)
 
         fallback = gate.executed
         if fallback is None:
             continue
-        fb_at = apply_quiet_hours_shift(at, fallback)
-        fb_gate = check(vis, customer, diagnosed, fallback, ctx, fb_at)
+        fb_cat = _trai_category(vis, customer, fallback)
+        fb_planned = at
+        fb_at = apply_quiet_hours_shift(at, fallback, category=fb_cat)
+        fb_gate = check(vis, customer, diagnosed, fallback, ctx, fb_at,
+                        category=fb_cat)
         use = fallback if (fb_gate.allowed or fallback.action in TERMINAL) else None
         if use is None:
             continue
         _record(steps, fb_at, fallback, use, "allowed",
                 fb_gate.reason if fb_gate.allowed else "fallback_terminal",
-                diagnosed, ctx.attempt_number, flagged)
+                diagnosed, ctx.attempt_number, flagged,
+                category=fb_cat, shifted=fb_at != fb_planned)
         if _consume(ctx, use, fc.max_attempts):
+            if use.action not in TERMINAL:
+                _close_exhausted(steps, fb_at, diagnosed, ctx, flagged)
             break
 
+    _ensure_terminal(
+        steps, failed_at=failed_at, diagnosed=diagnosed, ctx=ctx, flagged=flagged,
+    )
     return diagnosed, steps

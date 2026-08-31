@@ -25,9 +25,13 @@ class CustomerVisible:
     preferred_channel: str
     opted_out: bool
     lifetime_value: int
+    dnd_registered: bool = False
 
     def as_row(self) -> dict:
-        return asdict(self)
+        row = asdict(self)
+        # Canonical data/ has no dnd_registered column; loaders treat missing as False.
+        row.pop("dnd_registered", None)
+        return row
 
 
 def make_customer(cid: str, rng: random.Random, latents) -> CustomerVisible:
@@ -47,6 +51,7 @@ def make_customer(cid: str, rng: random.Random, latents) -> CustomerVisible:
         preferred_channel=rng.choices(["sms", "whatsapp", "email"], [.35, .50, .15])[0],
         opted_out=rng.random() < 0.04,
         lifetime_value=int(payments * rng.uniform(400, 3500)),
+        dnd_registered=False,  # TRAI DND. Canonical data/ has no column; missing → False.
     )
 
 

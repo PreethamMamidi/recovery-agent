@@ -41,7 +41,12 @@ class RunContext:
 
 
 def _in_quiet_hours(at: datetime) -> bool:
+    """Outside TRAI promotional window 09:00–21:00. Service traffic is unrestricted."""
     return at.hour >= QUIET_START_HOUR or at.hour < QUIET_END_HOUR
+
+
+def _dnd_registered(customer: dict) -> bool:
+    return str(customer.get("dnd_registered", "")).strip().lower() in {"true", "1", "yes"}
 
 
 def _next_open_window(at: datetime) -> datetime:
@@ -78,7 +83,8 @@ def _safe_fallback(vis, customer: dict, diagnosed_class: str,
 
 
 def check(vis, customer: dict, diagnosed_class: str, planned: Decision,
-          ctx: RunContext, at: datetime) -> GateResult:
+          ctx: RunContext, at: datetime, *,
+          category: str = "service") -> GateResult:
     fc = load_failure_classes()[diagnosed_class]
 
     # High value is an audit flag, not a freeze. Only abandon automation
@@ -106,9 +112,13 @@ def check(vis, customer: dict, diagnosed_class: str, planned: Decision,
         if ctx.messages_this_week >= MAX_MESSAGES_PER_WEEK:
             fb = decision("mark_uncollectible", reason="contact_frequency")
             return GateResult(False, "contact_frequency", fb, planned)
-        if _in_quiet_hours(at):
-            # Not a different action — caller should shift `at`. Signal via reason.
-            return GateResult(False, "quiet_hours", None, planned)
+        # TRAI: transactional/service SMS is 24/7 and DND-exempt.
+        # Promotional (offer in the body) is 09:00–21:00 and DND-scrubbed.
+        if category == "promotional":
+            if _dnd_registered(customer):
+                return GateResult(False, "dnd_registry", None, planned)
+            if _in_quiet_hours(at):
+                return GateResult(False, "quiet_hours", None, planned)
 
     if planned.action in AUTONOMOUS and planned.action not in AUTONOMOUS_NEED_MANDATE:
         pass
@@ -116,7 +126,10 @@ def check(vis, customer: dict, diagnosed_class: str, planned: Decision,
     return GateResult(True, "ok", planned, None)
 
 
-def apply_quiet_hours_shift(at: datetime, planned: Decision) -> datetime:
-    if planned.action in MESSAGE_ACTIONS and _in_quiet_hours(at):
+def apply_quiet_hours_shift(at: datetime, planned: Decision, *,
+                           category: str = "service") -> datetime:
+    if (planned.action in MESSAGE_ACTIONS
+            and category == "promotional"
+            and _in_quiet_hours(at)):
         return _next_open_window(at)
     return at

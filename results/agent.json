@@ -1,0 +1,175 @@
+{
+  "name": "agent",
+  "n": 813,
+  "recovered": 338,
+  "recovery_rate": 0.415744,
+  "natural": 178,
+  "natural_rate": 0.218942,
+  "debit_attempts": 322,
+  "wasted_debits": 0,
+  "impossible_debits": 0,
+  "messages": 949,
+  "messages_sms": 372,
+  "messages_whatsapp": 463,
+  "messages_email": 114,
+  "messages_per_recovery": 2.8077,
+  "opted_out_triggered": 0,
+  "recovered_rupees": 1658599.0,
+  "cost": 1187.1,
+  "net_value": 1657411.9,
+  "by_class": {
+    "insufficient_funds": {
+      "n": 198,
+      "recovered": 58,
+      "recovery_rate": 0.292929,
+      "natural": 40,
+      "natural_rate": 0.20202,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 53,
+      "opt_outs": 0,
+      "net_value": 200430.55
+    },
+    "technical_downtime": {
+      "n": 115,
+      "recovered": 98,
+      "recovery_rate": 0.852174,
+      "natural": 53,
+      "natural_rate": 0.46087,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 63,
+      "opt_outs": 0,
+      "net_value": 539058.4
+    },
+    "temporary_lockout": {
+      "n": 27,
+      "recovered": 22,
+      "recovery_rate": 0.814815,
+      "natural": 14,
+      "natural_rate": 0.518519,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 38,
+      "opt_outs": 0,
+      "net_value": 170969.4
+    },
+    "customer_input_error": {
+      "n": 122,
+      "recovered": 65,
+      "recovery_rate": 0.532787,
+      "natural": 24,
+      "natural_rate": 0.196721,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 202,
+      "opt_outs": 0,
+      "net_value": 415645.45
+    },
+    "instrument_invalid": {
+      "n": 91,
+      "recovered": 21,
+      "recovery_rate": 0.230769,
+      "natural": 1,
+      "natural_rate": 0.010989,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 169,
+      "opt_outs": 0,
+      "net_value": 23076.5
+    },
+    "issuer_decline": {
+      "n": 138,
+      "recovered": 16,
+      "recovery_rate": 0.115942,
+      "natural": 16,
+      "natural_rate": 0.115942,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 270,
+      "opt_outs": 0,
+      "net_value": 89876.8
+    },
+    "session_expiry": {
+      "n": 66,
+      "recovered": 29,
+      "recovery_rate": 0.439394,
+      "natural": 16,
+      "natural_rate": 0.242424,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 109,
+      "opt_outs": 0,
+      "net_value": 134351.25
+    },
+    "limit_exceeded": {
+      "n": 42,
+      "recovered": 23,
+      "recovery_rate": 0.547619,
+      "natural": 12,
+      "natural_rate": 0.285714,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 22,
+      "opt_outs": 0,
+      "net_value": 68716.7
+    },
+    "mandate_failure": {
+      "n": 14,
+      "recovered": 6,
+      "recovery_rate": 0.428571,
+      "natural": 2,
+      "natural_rate": 0.142857,
+      "wasted_debits": 0,
+      "impossible_debits": 0,
+      "messages": 23,
+      "opt_outs": 0,
+      "net_value": 15286.85
+    }
+  },
+  "rejections": 27,
+  "downtime_messages": 0,
+  "downtime_mandate_messages": 0,
+  "flagged_for_review": 46,
+  "trai": {
+    "service": 1028,
+    "promotional": 3,
+    "shifted_or_suppressed": 0
+  },
+  "pre_debit_notifications": 448,
+  "pre_debit_window_violations": 189,
+  "channel_mix": {
+    "sms": 372,
+    "whatsapp": 463,
+    "email": 114
+  },
+  "cost_breakdown": {
+    "debits": 644.0,
+    "sms": 74.4,
+    "whatsapp": 463.0,
+    "email": 5.7,
+    "opt_out": 0.0,
+    "total": 1187.1
+  },
+  "messages_by_class": {
+    "insufficient_funds": 53,
+    "technical_downtime": 63,
+    "temporary_lockout": 38,
+    "customer_input_error": 202,
+    "instrument_invalid": 169,
+    "issuer_decline": 270,
+    "session_expiry": 109,
+    "limit_exceeded": 22,
+    "mandate_failure": 23
+  },
+  "close_reasons": {
+    "attempt_budget": 347,
+    "opted_out": 27,
+    "schedule_exhausted": 439,
+    "no_viable_action": 0
+  },
+  "gate_rejections": {
+    "opted_out": 27,
+    "offer_beyond_policy": 0
+  }
+}

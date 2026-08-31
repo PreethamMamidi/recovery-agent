@@ -532,8 +532,12 @@ Afternoon — **NLP / RAG:**
 ### Day 7 — Freeze, rehearse, buffer
 - **Code freeze by midday**
 - Finalise numbers: aggregate lift, per-class lift, net value, honest exception list
-- "What we'd do next" slide: real webhook integration, live Razorpay downtime signals, uplift model in production, multi-merchant policy tenancy
+- "What we'd do next":
+  - Pre-debit notification vs retry timing. RBI's 2026 e-mandate framework requires 24 hours' notice before every mandate debit. Our retry ladders fire at 4h/10h for downtime and 2h/8h for lockout — timings tuned to when the underlying blocker clears. 189 of 448 mandate debits in this batch would violate the notification requirement. A production deployment needs either 24h notice per attempt, which costs most of the downtime and lockout recovery, or a mandate structure that pre-notifies a retry window rather than each individual attempt. We found this by implementing the requirement rather than describing it.
+  - Real webhook integration, live Razorpay downtime signals, uplift model in production, multi-merchant policy tenancy
 - Rehearse the demo 3× against a clock
+
+Demo script: `PAY_00210` (B vs agent) → `PAY_00026` (wait, zero messages) → `PAY_00062` / `PAY_00071` (policy vs gate) → `python -m agent.messaging --demo rogue` → headline **41.6% / +20.7 pp / 949 messages**. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment.
 
 ---
 

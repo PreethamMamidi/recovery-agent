@@ -25,13 +25,14 @@ CREATE TABLE IF NOT EXISTS decisions (
     outcome TEXT,
     cost REAL
 );
+CREATE INDEX IF NOT EXISTS idx_decisions_payment ON decisions(payment_id);
 """
 
 
 def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
-    conn.execute(SCHEMA)
+    conn.executescript(SCHEMA)
     return conn
 
 
@@ -41,7 +42,7 @@ def reset(path: Path = DEFAULT_DB) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.execute("DROP TABLE IF EXISTS decisions")
-    conn.execute(SCHEMA)
+    conn.executescript(SCHEMA)
     conn.commit()
     return conn
 
@@ -94,3 +95,38 @@ def count_rejections(conn: sqlite3.Connection) -> int:
         "SELECT COUNT(*) FROM decisions WHERE executed = 0"
     ).fetchone()
     return int(row[0])
+
+
+def count_close_reasons(conn: sqlite3.Connection) -> dict[str, int]:
+    conn.row_factory = sqlite3.Row
+    cur = conn.execute(
+        """SELECT json_extract(action_args, '$.reason') AS reason, COUNT(*) AS n
+           FROM decisions
+           WHERE executed = 1 AND chosen_action IN ('mark_uncollectible', 'escalate')
+           GROUP BY 1"""
+    )
+    out: dict[str, int] = {}
+    for row in cur:
+        key = row["reason"] or "unspecified"
+        out[key] = int(row["n"])
+    return out
+
+
+def count_gate_reasons(conn: sqlite3.Connection) -> dict[str, int]:
+    conn.row_factory = sqlite3.Row
+    cur = conn.execute(
+        """SELECT gate_reason, COUNT(*) AS n
+           FROM decisions WHERE executed = 0
+           GROUP BY gate_reason"""
+    )
+    return {str(row["gate_reason"]): int(row["n"]) for row in cur}
+
+
+def print_trace(rows: list, payment_id: str) -> None:
+    """Same columns as eval.run_agent's end-to-end trace."""
+    print(f"\n  audit log  {payment_id}  ({len(rows)} decisions)")
+    print(f"  {'at':<22}{'class':<22}{'action':<28}{'gate':<10}{'reason'}")
+    print("  " + "-" * 90)
+    for r in rows:
+        print(f"  {r['timestamp']:<22}{r['failure_class']:<22}"
+              f"{r['chosen_action']:<28}{r['gate_result']:<10}{r['gate_reason']}")

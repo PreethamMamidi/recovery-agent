@@ -1,0 +1,164 @@
+{
+  "name": "B SMS+3 retries",
+  "n": 813,
+  "recovered": 264,
+  "recovery_rate": 0.324723,
+  "natural": 178,
+  "natural_rate": 0.218942,
+  "debit_attempts": 972,
+  "wasted_debits": 426,
+  "impossible_debits": 1094,
+  "messages": 813,
+  "messages_sms": 813,
+  "messages_whatsapp": 0,
+  "messages_email": 0,
+  "messages_per_recovery": 3.0795,
+  "opted_out_triggered": 0,
+  "recovered_rupees": 1379294.0,
+  "cost": 2106.6,
+  "net_value": 1377187.4,
+  "by_class": {
+    "insufficient_funds": {
+      "n": 198,
+      "recovered": 43,
+      "recovery_rate": 0.217172,
+      "natural": 40,
+      "natural_rate": 0.20202,
+      "wasted_debits": 0,
+      "impossible_debits": 166,
+      "messages": 198,
+      "opt_outs": 0,
+      "net_value": 136106.4
+    },
+    "technical_downtime": {
+      "n": 115,
+      "recovered": 89,
+      "recovery_rate": 0.773913,
+      "natural": 53,
+      "natural_rate": 0.46087,
+      "wasted_debits": 0,
+      "impossible_debits": 101,
+      "messages": 115,
+      "opt_outs": 0,
+      "net_value": 454377.0
+    },
+    "temporary_lockout": {
+      "n": 27,
+      "recovered": 16,
+      "recovery_rate": 0.592593,
+      "natural": 14,
+      "natural_rate": 0.518519,
+      "wasted_debits": 0,
+      "impossible_debits": 63,
+      "messages": 27,
+      "opt_outs": 0,
+      "net_value": 143210.6
+    },
+    "customer_input_error": {
+      "n": 122,
+      "recovered": 49,
+      "recovery_rate": 0.401639,
+      "natural": 24,
+      "natural_rate": 0.196721,
+      "wasted_debits": 0,
+      "impossible_debits": 266,
+      "messages": 122,
+      "opt_outs": 0,
+      "net_value": 348605.6
+    },
+    "instrument_invalid": {
+      "n": 91,
+      "recovered": 1,
+      "recovery_rate": 0.010989,
+      "natural": 1,
+      "natural_rate": 0.010989,
+      "wasted_debits": 159,
+      "impossible_debits": 113,
+      "messages": 91,
+      "opt_outs": 0,
+      "net_value": -54.2
+    },
+    "issuer_decline": {
+      "n": 138,
+      "recovered": 16,
+      "recovery_rate": 0.115942,
+      "natural": 16,
+      "natural_rate": 0.115942,
+      "wasted_debits": 267,
+      "impossible_debits": 140,
+      "messages": 138,
+      "opt_outs": 0,
+      "net_value": 89461.4
+    },
+    "session_expiry": {
+      "n": 66,
+      "recovered": 23,
+      "recovery_rate": 0.348485,
+      "natural": 16,
+      "natural_rate": 0.242424,
+      "wasted_debits": 0,
+      "impossible_debits": 156,
+      "messages": 66,
+      "opt_outs": 0,
+      "net_value": 127060.8
+    },
+    "limit_exceeded": {
+      "n": 42,
+      "recovered": 25,
+      "recovery_rate": 0.595238,
+      "natural": 12,
+      "natural_rate": 0.285714,
+      "wasted_debits": 0,
+      "impossible_debits": 49,
+      "messages": 42,
+      "opt_outs": 0,
+      "net_value": 75044.6
+    },
+    "mandate_failure": {
+      "n": 14,
+      "recovered": 2,
+      "recovery_rate": 0.142857,
+      "natural": 2,
+      "natural_rate": 0.142857,
+      "wasted_debits": 0,
+      "impossible_debits": 40,
+      "messages": 14,
+      "opt_outs": 0,
+      "net_value": 3375.2
+    }
+  },
+  "downtime_mandate_messages": 79,
+  "channel_mix": {
+    "sms": 813,
+    "whatsapp": 0,
+    "email": 0
+  },
+  "cost_breakdown": {
+    "debits": 1944.0,
+    "sms": 162.6,
+    "whatsapp": 0.0,
+    "email": 0.0,
+    "opt_out": 0.0,
+    "total": 2106.6
+  },
+  "messages_by_class": {
+    "insufficient_funds": 198,
+    "technical_downtime": 115,
+    "temporary_lockout": 27,
+    "customer_input_error": 122,
+    "instrument_invalid": 91,
+    "issuer_decline": 138,
+    "session_expiry": 66,
+    "limit_exceeded": 42,
+    "mandate_failure": 14
+  },
+  "close_reasons": {
+    "schedule_exhausted": 0,
+    "attempt_budget": 0,
+    "opted_out": 0,
+    "no_viable_action": 0
+  },
+  "gate_rejections": {
+    "offer_beyond_policy": 0
+  }
+}

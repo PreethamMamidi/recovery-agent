@@ -2,11 +2,11 @@
 
 **Recovery Agent — Razorpay Buildathon Track 03**
 
-Plan written before the Day 5 eval. The EV floor in §3.2–3.3 predicted suppression would work via `p * amount > cost`. It did not: at these message costs (email ₹0.05, WhatsApp ₹1) almost nothing fails the test. What the model actually learned is in `day5-results.md`. After the ablation, the 6h second ask was folded into `policy.py`; the rule floor is now **41.5%** (was 38.6% at Fix 7).
+Plan written before the Day 5 eval. The EV floor in §3.2–3.3 predicted suppression would work via `p * amount > cost`. It did not: at these message costs (email ₹0.05, WhatsApp ₹1) almost nothing fails the test. What the model actually learned is in `day5-results.md`. After the ablation, the 6h second ask was folded into `policy.py`; the live rule floor is **41.6%**. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment.
 
 Two halves. Morning is the ML decision layer. Afternoon is NLP and RAG.
 
-**Governing rule for the day:** the rule-based agent at 41.5% is your floor and your fallback. Every ML addition must beat it on the same seeds or it does not ship. *"We tried the model, it did not beat the rules, here is the evidence"* is a strong result — it demonstrates judgment. A shaky model presented as a win is not.
+**Governing rule for the day:** the rule-based agent at 41.6% is your floor and your fallback. Every ML addition must beat it on the same seeds or it does not ship. *"We tried the model, it did not beat the rules, here is the evidence"* is a strong result — it demonstrates judgment. A shaky model presented as a win is not.
 
 ---
 

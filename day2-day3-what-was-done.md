@@ -1,6 +1,6 @@
 # What was implemented — Day 2 fixes and Day 3 agent
 
-This note is a walkthrough of the work after the generator (Day 1) and first simulator/baselines (Day 2). It records what changed, why, and what the numbers mean. Canonical headlines are now **41.5%** (`results_after_rebaseline.json`); Fix 7 sat at 38.6%.
+This note is a walkthrough of the work after the generator (Day 1) and first simulator/baselines (Day 2). It records what changed, why, and what the numbers mean. Canonical headlines are now **41.6%** (`results_after_trai.json`). 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment. That snapshot is `results_after_rebaseline.json`. Fix 7 sat at 38.6%.
 
 ---
 
@@ -164,7 +164,7 @@ Example from a real run — `PAY_00003`:
 
 ## 4. Numbers on the canonical batch (n = 1,000, seed 42)
 
-Treatment n = 813. Control n = 187. Control recovery = 20.9%. Source: `results_after_rebaseline.json` (Fix 7 snapshot: `results_before_rebaseline.json`).
+Treatment n = 813. Control n = 187. Control recovery = 20.9%. Source: `results_after_trai.json` (pre-TRAI snapshot: `results_after_rebaseline.json`; Fix 7: `results_before_rebaseline.json`).
 
 | Policy | Recovery | Lift | Wasted | Imposs | Messages | m/rec | Opt-outs | Net Rs |
 |---|---|---|---|---|---|---|---|---|
@@ -172,7 +172,7 @@ Treatment n = 813. Control n = 187. Control recovery = 20.9%. Source: `results_a
 | A | 26.8% | +6.0 pp | 142 | 417 | 0 | 0 | 0 | 1,072,537 |
 | B | 32.5% | +11.6 pp | 426 | 1,094 | 813 | 3.08 | 0 | 1,377,187 |
 | C | 32.2% | +11.4 pp | 569 | 1,427 | 3,297 | 12.58 | 329 | 85,761 |
-| **Agent** | **41.5%** | **+20.6 pp** | **0** | **0** | **951** | **2.82** | 0 | **1,657,339** |
+| **Agent** | **41.6%** | **+20.7 pp** | **0** | **0** | **949** | **2.81** | 0 | **1,657,412** |
 
 Control net is gross recovered (zero costs); rupee figures on that arm are noisy.
 
@@ -182,11 +182,11 @@ The agent beats B on recovery **and** on efficiency:
 
 - wasted debits **0** (from 426)
 - impossible debits **0** (from 1,094)
-- messages **951** vs **813**; messages per recovery **2.82 vs 3.08** (exceeds B on raw sends; still beats B on the ratio)
+- messages **949** vs **813**; messages per recovery **2.81 vs 3.08** (exceeds B on raw sends; still beats B on the ratio)
 - downtime-with-mandate messages **0**
 - **27** gate rejections; **46** high-value rows flagged for review (policy still runs)
 
-The customer-action 6h follow-up moved messages 639 → 951 and m/rec 2.04 → 2.82 while recovery went 38.6% → 41.5%. Both went up. Restraint was never “fewest messages” — it is no messages where they don’t help. Channel mix: 373 SMS / 464 WhatsApp / 114 email (preferred_channel). B is 813 SMS.
+The customer-action 6h follow-up moved messages 639 → 951 and m/rec 2.04 → 2.82 while recovery went 38.6% → 41.5% (that 41.5% / 951 snapshot is `results_after_rebaseline.json`). 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment. Live floor: **41.6% / 949**. Channel mix: 372 SMS / 463 WhatsApp / 114 email (preferred_channel). B is 813 SMS.
 
 Where diagnosis actually changes the action:
 
@@ -195,10 +195,10 @@ Where diagnosis actually changes the action:
 | `instrument_invalid` | 91 | 1.1% | **23.1%** | ask for a new instrument; stop retrying a dead card; 6h follow-up |
 | `mandate_failure` | 14 | 14.3% | **42.9%** | reauth, not debit; 6h follow-up |
 | `insufficient_funds` | 198 | 21.7% | **29.3%** | nearest 1st/7th/15th (not hidden `salary_day`; 29.3% ≪ 45% leak tripwire) |
-| `technical_downtime` | 115 | 77.4% | **86.1%** | backoff after wait; no SMS if mandate |
+| `technical_downtime` | 115 | 77.4% | **85.2%** | backoff after wait; no SMS if mandate |
 | `temporary_lockout` | 27 | 59.3% | **81.5%** | exponential 2h/8h/32h |
 | `session_expiry` | 66 | 34.8% | **43.9%** | immediate then 6h (holds on 5/5 seeds) |
-| `customer_input_error` | 122 | 40.2% | **51.6%** | link then +6h |
+| `customer_input_error` | 122 | 40.2% | **53.3%** | link then +6h |
 | `limit_exceeded` | 42 | **59.5%** | 54.8% | 00:30 ladder; B’s 24/72/120h still leads |
 
 B still leads on `limit_exceeded` (59.5% vs 54.8% on 42 payments). Its 24/72/120h retries catch daily-cap resets the two-step 00:30 ladder misses. Matching it is possible; schedule-tuning stops here.
