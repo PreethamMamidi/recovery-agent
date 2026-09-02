@@ -11,6 +11,7 @@ Thumbs.db
 .idea/
 .vscode/
 audit/log.db
+api/events.db
 
 # Robustness batches. Never commit these as a silent re-baseline of data/.
 # Canonical headlines stay attached to data/ (seed 42, estimated mix).

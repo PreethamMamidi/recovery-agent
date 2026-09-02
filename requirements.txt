@@ -1,2 +1,6 @@
 streamlit
 pandas
+fastapi
+uvicorn
+pydantic
+httpx

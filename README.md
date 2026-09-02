@@ -287,3 +287,54 @@ python -m agent.messaging --demo rogue          # validator rejects an invented 
 python -m eval.run_agent --trace PAY_00071      # gate rejects a debit, live trace
 python -m agent.messaging --demo no-index       # retrieval fails, no-offer fallback
 ```
+
+---
+
+## API
+
+Same agent as the dashboard, behind HTTP. `api/` imports `agent/` the way `dashboard/` does — nothing in `agent/`, `simulator/`, or `generator/` changes. The dashboard still reads `results/` and `results/audit.db` directly; it does not call this service.
+
+```bash
+.venv/bin/uvicorn api.main:app --reload   # from repo root, not api/
+```
+
+Then [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) (Swagger). `/` is empty.
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/metrics` | `results/agent.json` |
+| `GET` | `/payments/{id}` | Decision chain from `results/audit.db` (read-only, per-request). Try `PAY_00071`. |
+| `POST` | `/webhook` | Razorpay `payment.failed` → diagnose → policy → gate. Returns gate results, not just actions. |
+
+`GET /payments/PAY_00071` is the two-row opt-out chain the timeline renders: rejected `retry_debit`, then `mark_uncollectible`. `test_audit_chain_matches_dashboard_render` asserts the API and `dashboard/render.py` do not drift.
+
+### Webhook
+
+Set `RAZORPAY_WEBHOOK_SECRET` in `.env` — that is the **webhook** secret from the Razorpay dashboard, not `RAZORPAY_KEY_SECRET`.
+
+Signature is HMAC-SHA256 of the **raw body** (`await request.body()`), compared with `hmac.compare_digest`. Parse-then-re-serialise will never match. Header: `X-Razorpay-Signature`.
+
+The fixture `tests/fixtures/razorpay_payment_failed.json` uses the [official `payment.failed` envelope](https://razorpay.com/docs/webhooks/payments/) (`entity`, `account_id`, `event`, `contains`, `payload`, `created_at`) — not a guessed `{id, event, payload}` wrapper. Official bodies have no event `id`; idempotency uses `X-Razorpay-Event-Id`, then body `id` if present, then `pay_id:created_at`.
+
+Four decisions in the handler:
+
+1. **Verify signature first.** Missing or wrong → 401.
+2. **Idempotency before any work.** A duplicate is free: `{"status": "duplicate", "event_id": ...}`.
+3. **Unknown / null `error_reason` → 200**, not 500. `diagnose()` raises `KeyError` on purpose for synthetic data; a 500 would make Razorpay retry forever. Accept, log, return `failure_class: "unknown"`. That log is the list of reasons the taxonomy does not cover.
+4. **Merchant-data join.** A webhook has amount, method, error fields, notes. It does not have `tenure_months`, `past_payment_count`, or `has_active_mandate`. `build_visible_from_webhook` looks up `notes.internal_payment_id` in the batch CSVs and falls back to conservative defaults (no mandate). Amount is paise → rupees. Webhook writes go to `api/events.db` (gitignored), never the committed dashboard DB.
+
+```bash
+set -a; source .env; set +a
+SIG=$(python -c "from pathlib import Path; from api.security import sign; import os; print(sign(Path('tests/fixtures/razorpay_payment_failed.json').read_bytes(), os.environ['RAZORPAY_WEBHOOK_SECRET']))")
+curl -s -X POST localhost:8000/webhook \
+  -H "X-Razorpay-Signature: $SIG" \
+  -H "Content-Type: application/json" \
+  --data-binary @tests/fixtures/razorpay_payment_failed.json
+```
+
+Run it twice. First returns a decision (`insufficient_funds`, payday `retry_debit` for `PAY_00001`); second returns `duplicate`.
+
+```bash
+python -m unittest tests.test_api
+```
+

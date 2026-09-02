@@ -1,0 +1,48 @@
+{
+  "entity": "event",
+  "account_id": "acc_BFQ7uQEaa7j2z7",
+  "event": "payment.failed",
+  "contains": ["payment"],
+  "created_at": 1787243760,
+  "payload": {
+    "payment": {
+      "entity": {
+        "id": "pay_DESp9bgForNoUd",
+        "entity": "payment",
+        "amount": 163800,
+        "currency": "INR",
+        "status": "failed",
+        "order_id": "order_DESoU0U4ikYA19",
+        "invoice_id": null,
+        "international": false,
+        "method": "upi",
+        "amount_refunded": 0,
+        "amount_transferred": 0,
+        "refund_status": null,
+        "captured": false,
+        "description": null,
+        "card_id": null,
+        "bank": null,
+        "wallet": null,
+        "vpa": "success@razorpay",
+        "email": "john.smith@example.com",
+        "contact": "+11234567890",
+        "notes": {
+          "internal_payment_id": "PAY_00001"
+        },
+        "fee": null,
+        "tax": null,
+        "error_code": "BAD_REQUEST_ERROR",
+        "error_description": "Payment failed due to insufficient funds",
+        "error_source": "customer",
+        "error_step": "payment_authorization",
+        "error_reason": "insufficient_funds",
+        "acquirer_data": {
+          "rrn": "322206890934"
+        },
+        "created_at": 1787243760,
+        "token_id": null
+      }
+    }
+  }
+}
