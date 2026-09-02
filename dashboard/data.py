@@ -2,16 +2,27 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import sqlite3
 from pathlib import Path
 
 import streamlit as st
 
+try:
+    from dashboard.explore import apply_filters, build_treatment_frame
+    from dashboard.render import sum_treatment_amounts
+except ImportError:
+    from explore import apply_filters, build_treatment_frame
+    from render import sum_treatment_amounts
+
 ROOT = Path(__file__).resolve().parents[1]
+DATA = ROOT / "data"
 RESULTS = ROOT / "results"
+# Timeline uses the committed results copy, not the gitignored working log.
 AUDIT = RESULTS / "audit.db"
 CASES = ROOT / "config" / "demo_cases.json"
+VISIBLE = DATA / "payments_visible.csv"
 
 POLICY_FILES = {
     "Control": "control.json",
@@ -38,6 +49,37 @@ def load_policy(label: str) -> dict:
 @st.cache_data
 def load_payments() -> dict:
     return load_json("payments.json")
+
+
+@st.cache_data
+def treatment_at_risk() -> float:
+    with open(VISIBLE, newline="", encoding="utf-8") as fh:
+        return sum_treatment_amounts(list(csv.DictReader(fh)))
+
+
+@st.cache_data
+def load_treatment_payments():
+    """Treatment arm + agent outcomes. Read once; filters reuse this frame."""
+    with open(VISIBLE, newline="", encoding="utf-8") as fh:
+        vis = list(csv.DictReader(fh))
+    return build_treatment_frame(vis, load_payments())
+
+
+@st.cache_data
+def filtered_payments(
+    classes: tuple,
+    band_lo: str,
+    band_hi: str,
+    mandate: str,
+    outcome: str,
+):
+    return apply_filters(
+        load_treatment_payments(),
+        classes,
+        (band_lo, band_hi),
+        mandate,
+        outcome,
+    )
 
 
 @st.cache_data

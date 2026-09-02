@@ -25,6 +25,43 @@ def inr(x: float) -> str:
     return f"{x:,.0f}"
 
 
+def lakhs(x: float) -> str:
+    return f"₹{x / 100_000:.1f}L"
+
+
+def sum_treatment_amounts(rows: list[dict]) -> float:
+    """Treatment-arm total. That is revenue at risk."""
+    return sum(
+        float(r["amount"])
+        for r in rows
+        if str(r.get("arm", "")).strip().lower() == "treatment"
+    )
+
+
+def _wasted_delta_label(delta: int) -> str:
+    if delta < 0:
+        return f"−{abs(delta)} vs baseline"
+    if delta > 0:
+        return f"+{delta} vs baseline"
+    return "0 vs baseline"
+
+
+def headline_metrics(
+    agent: dict, baseline_b: dict, control: dict, at_risk: float,
+) -> list[tuple[str, str, str]]:
+    """Four hero cards. Values come from JSON + the batch CSV so app.py never hardcodes them."""
+    recovered = float(agent["recovered_rupees"])
+    of_risk = recovered / at_risk if at_risk else 0.0
+    vs_ctl = agent["recovery_rate"] - control["recovery_rate"]
+    wasted_delta = int(agent["wasted_debits"]) - int(baseline_b["wasted_debits"])
+    return [
+        ("Revenue at risk", lakhs(at_risk), ""),
+        ("Recovered", lakhs(recovered), f"{pct(of_risk)} of at-risk"),
+        ("Incremental lift", f"{pp(vs_ctl)} pp", "vs no-intervention control"),
+        ("Wasted debits", str(int(agent["wasted_debits"])), _wasted_delta_label(wasted_delta)),
+    ]
+
+
 def caveat(control_n: int) -> str:
     return (
         f"control n={control_n}; rupee figures on this arm are noisy — "
