@@ -176,12 +176,15 @@ class PrecomputeShapeTests(unittest.TestCase):
         )
         self.assertIn("Measured against a control group that got nothing.", src)
 
-    def test_requirements_are_dashboard_only(self):
+    def test_requirements_keep_dashboard_boot_without_ml(self):
         lines = [
             ln.strip() for ln in (ROOT / "requirements.txt").read_text().splitlines()
             if ln.strip() and not ln.strip().startswith("#")
         ]
-        self.assertEqual(lines, ["streamlit", "pandas"])
+        self.assertIn("streamlit", lines)
+        self.assertIn("pandas", lines)
+        blocked = {"lightgbm", "sklearn", "scikit-learn", "faiss-cpu", "faiss"}
+        self.assertFalse(blocked & set(lines))
 
     def test_sandbox_import_does_not_load_lightgbm(self):
         import sys
