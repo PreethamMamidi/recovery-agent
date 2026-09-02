@@ -21,7 +21,10 @@ from dashboard.render import (  # noqa: E402
     MESSAGE_ACTIONS,
     caveat,
     comparison_row,
+    headline_metrics,
+    lakhs,
     per_class_lift_rows,
+    sum_treatment_amounts,
     timeline_lines,
 )
 
@@ -49,6 +52,13 @@ BOOKMARKS = [
 
 def _json(name: str) -> dict:
     return json.loads((RESULTS / name).read_text(encoding="utf-8"))
+
+
+def _treatment_at_risk() -> float:
+    import csv
+    path = ROOT / "data" / "payments_visible.csv"
+    with open(path, newline="", encoding="utf-8") as fh:
+        return sum_treatment_amounts(list(csv.DictReader(fh)))
 
 
 def _audit_rows(pid: str) -> list[dict]:
@@ -152,11 +162,34 @@ class PrecomputeShapeTests(unittest.TestCase):
         dash = (ROOT / "dashboard" / "data.py").read_text(encoding="utf-8")
         self.assertIn("WHERE payment_id = ?", dash)
         self.assertNotIn("SELECT * FROM decisions", dash)
+        self.assertIn('RESULTS / "audit.db"', dash)
+        self.assertNotIn("audit/log.db", dash)
+        self.assertTrue((RESULTS / "audit.db").exists())
 
     def test_app_has_no_hardcoded_headlines(self):
         src = (ROOT / "dashboard" / "app.py").read_text(encoding="utf-8")
-        for stale in ("20.9%", "41.5%", "41.6%", "1,657,339", "1,657,412", "+20.6", "+20.7", "32.5%"):
+        for stale in ("20.9%", "41.5%", "41.6%", "1,657,339", "1,657,412", "+20.6", "+20.7", "32.5%", "₹39.9L", "₹16.6L"):
             self.assertNotIn(stale, src)
+        self.assertIn(
+            "Every failed payment gets the same retry. Different failures need opposite actions.",
+            src,
+        )
+        self.assertIn("Measured against a control group that got nothing.", src)
+
+    def test_requirements_are_dashboard_only(self):
+        lines = [
+            ln.strip() for ln in (ROOT / "requirements.txt").read_text().splitlines()
+            if ln.strip() and not ln.strip().startswith("#")
+        ]
+        self.assertEqual(lines, ["streamlit", "pandas"])
+
+    def test_sandbox_import_does_not_load_lightgbm(self):
+        import sys
+        from dashboard.sandbox import PRESETS, run_invented
+        self.assertNotIn("lightgbm", sys.modules)
+        out = run_invented(PRESETS["Expired card"])
+        self.assertEqual(out["diagnosed"], "instrument_invalid")
+        self.assertNotIn("lightgbm", sys.modules)
 
 
 class ScreenFiguresMatchJsonTests(unittest.TestCase):
@@ -181,6 +214,33 @@ class ScreenFiguresMatchJsonTests(unittest.TestCase):
             self.assertEqual(row["Wasted"], policy["wasted_debits"])
             self.assertEqual(row["Impossible"], policy["impossible_debits"])
             self.assertEqual(row["Msgs"], policy["messages"])
+
+    def test_headline_metrics_match_json(self):
+        agent = _json("agent.json")
+        b = _json("baseline_b.json")
+        control = _json("control.json")
+        at_risk = _treatment_at_risk()
+        self.assertEqual(at_risk, 3_985_684)
+        cards = headline_metrics(agent, b, control, at_risk)
+        self.assertEqual(cards[0][0], "Revenue at risk")
+        self.assertEqual(cards[0][1], "₹39.9L")
+        self.assertEqual(cards[0][2], "")
+        self.assertEqual(cards[1][0], "Recovered")
+        self.assertEqual(cards[1][1], lakhs(agent["recovered_rupees"]))
+        self.assertEqual(cards[1][1], "₹16.6L")
+        self.assertEqual(cards[1][2], "41.6% of at-risk")
+        self.assertEqual(cards[2][0], "Incremental lift")
+        self.assertTrue(cards[2][1].endswith(" pp"))
+        self.assertEqual(cards[2][1], comparison_row("Agent", agent, control)["Lift"] + " pp")
+        self.assertEqual(cards[2][2], "vs no-intervention control")
+        self.assertEqual(cards[3][0], "Wasted debits")
+        self.assertEqual(cards[3][1], "0")
+        self.assertEqual(cards[3][2], "−426 vs baseline")
+        src = (ROOT / "dashboard" / "app.py").read_text(encoding="utf-8")
+        self.assertNotIn(cards[0][1], src)
+        self.assertNotIn(cards[1][1], src)
+        self.assertNotIn(cards[1][2], src)
+        self.assertNotIn(cards[2][1], src)
 
     def test_per_class_lift_matches_json(self):
         agent = _json("agent.json")
@@ -369,6 +429,8 @@ class BookmarkClickTests(unittest.TestCase):
         at = AppTest.from_file(str(ROOT / "dashboard" / "app.py"), default_timeout=20)
         at.run()
         self.assertFalse(at.exception, msg=str(at.exception))
+        markdown = "\n".join(m.value for m in at.markdown if isinstance(m.value, str))
+        self.assertIn("showing 813 of 813 payments", markdown)
         labels = [b.label for b in at.button]
         for pid in BOOKMARKS:
             self.assertIn(pid, labels, f"button {pid} missing; have {labels}")
@@ -382,6 +444,27 @@ class BookmarkClickTests(unittest.TestCase):
                 pid, markdown,
                 f"{pid} click did not render the chain. markdown={markdown[:400]!r}",
             )
+
+
+    def test_class_drill_opens_chain_inline(self):
+        from streamlit.testing.v1 import AppTest
+
+        at = AppTest.from_file(str(ROOT / "dashboard" / "app.py"), default_timeout=30)
+        at.run()
+        self.assertFalse(at.exception, msg=str(at.exception))
+        view = next(b for b in at.button if b.key == "drill_mandate_failure")
+        view.click().run()
+        self.assertFalse(at.exception, msg=str(at.exception))
+        captions = "\n".join(c.value for c in at.caption if isinstance(c.value, str))
+        self.assertIn("Batch → mandate_failure", captions)
+        self.assertIn("← Back to all", [b.label for b in at.button])
+        self.assertIn("open_PAY_00062", [b.key for b in at.button])
+        opener = next(b for b in at.button if b.key == "open_PAY_00062")
+        opener.click().run()
+        self.assertFalse(at.exception, msg=str(at.exception))
+        markdown = "\n".join(m.value for m in at.markdown if isinstance(m.value, str))
+        self.assertIn("PAY_00062", markdown)
+        self.assertIn("mandate_failure", markdown)
 
 
 if __name__ == "__main__":
