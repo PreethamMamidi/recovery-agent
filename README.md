@@ -149,7 +149,7 @@ python -m eval.check_seeds
 
 Costs (fixed in `config/costs.py` before seeing results): Rs 2 / debit, Rs 0.20 / SMS, Rs 1 / WhatsApp, Rs 0.05 / email, opt-out = 30% of LTV.
 
-Canonical batch: seed 42, treatment n=813, `results_after_rebaseline.json`.
+Canonical batch: seed 42, treatment n=813. Live numbers are in `results/`.
 
 | | rec | lift vs control | wasted | imposs | msgs | opt-outs | net Rs |
 |---|---|---|---|---|---|---|---|
@@ -194,7 +194,7 @@ python -m eval.run_agent
 
 Agent beats B on recovery and on efficiency. Zero wasted debits, zero impossible debits, **zero downtime-with-mandate messages**, 27 gate rejections, 46 high-value rows flagged for review (policy still runs).
 
-Messages: agent **949** vs B 813. That exceeds B. The restraint claim was never “fewest messages” — it is messages-per-recovery and zero messages where they don’t help. Messages per recovery **2.81 vs 3.08**. Channel mix (preferred_channel, not a spray): 372 SMS / 463 WhatsApp / 114 email. B is 813 SMS. The 6h second ask on four customer-action classes is in `policy.py` (folded in after a no-model ablation showed it was a rule, not an ML result). Fix 7 sat at 38.6% / 639 messages; `results_before_rebaseline.json` holds that snapshot. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment.
+Messages: agent **949** vs B 813. That exceeds B. The restraint claim was never “fewest messages” — it is messages-per-recovery and zero messages where they don’t help. Messages per recovery **2.81 vs 3.08**. Channel mix (preferred_channel, not a spray): 372 SMS / 463 WhatsApp / 114 email. B is 813 SMS. The 6h second ask on four customer-action classes is in `policy.py` (folded in after a no-model ablation showed it was a rule, not an ML result). Fix 7 sat at 38.6% / 639 messages. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment.
 
 Where the taxonomy actually changes the action:
 
@@ -229,15 +229,13 @@ Issuers must send a pre-debit notification at least 24 hours before a mandate de
 
 ## Robustness (calibration and sensitivity)
 
-Headline numbers above are the canonical `data/` batch (seed 42, estimated mix). They are not replaced. The checks below write to `--out` directories and answer *"you made the data up"* without retuning policy. They were run on the Fix 7 agent (38.6%) and were not repeated after the second-ask rebaseline (`results_after_rebaseline.json`).
+Headline numbers above are the canonical `data/` batch (seed 42, estimated mix). They are not replaced. The checks below write to `--out` directories and answer *"you made the data up"* without retuning policy. They were run on the Fix 7 agent (38.6%) and were not repeated after the second-ask rebaseline.
 
 **Class mix.** Generation weights have a second file, `config/failure_classes_calibrated.csv`, anchored on NPCI's published business/technical decline split — 81.7% BD / 18.3% TD across the top 50 remitter banks (FinBox analysis of NPCI bank stats, Mar 2022–Mar 2023). `technical_downtime` at 18% matches NPCI's TD share. NPCI and Business Standard both name insufficient balance and wrong PIN as the top two reasons; those are the two largest calibrated classes at 28% and 17%. Card and mandate-lifecycle failures fall outside the UPI decline taxonomy and stay estimated. The largest weight move versus the estimated mix is 0.05. `p_resolves` is not changed in that file.
 
 Across six seeds the agent still beats B on every run (mean gap **+5.7pp** vs published **+6.1pp**).
 
 **Priors.** Shifting every `p_resolves` by ±0.1 (clamped to [0, 1]) leaves the agent–B gap at **+5.9pp / +6.1pp / +6.1pp** (pessimistic / canonical / optimistic means). The person-side lever — `p_reattempts` coefficients 0.35/0.45 ±0.1 — moves control from **15.2%** to **25.4%** while the gap stays **+5.8pp / +5.6pp**.
-
-Full tables, the evening-peak batch, limitations, and the Q&A answer: [calibration-sensitivity-results.md](calibration-sensitivity-results.md).
 
 ```bash
 python -m generator.generate --n 1000 --seed 42   # still writes data/
@@ -252,7 +250,7 @@ python -m unittest discover tests
 
 ## Day 5 — Propensity (optional; rules stay the default)
 
-The rule agent above is the floor: **41.6%**. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment. A LightGBM propensity model (`P(recover | visible features, action, channel)`) was trained on seeds **101–108** only. Eval seeds 42 / 1 / 2 / 7 / 99 / 123 were never used to fit. Converting-step labels: ROC-AUC **0.778**, PR-AUC **0.409**. Those AUCs, and the 6/6 seed bar below, were measured against `results_after_rebaseline.json` and were not repeated after the TRAI send-time correction.
+The rule agent above is the floor: **41.6%**. 41.5% / 951 messages was the same rules with a blanket 21:00–09:00 quiet-hours block. TRAI exempts service-class messages from that window; removing it recovered one additional payment. A LightGBM propensity model (`P(recover | visible features, action, channel)`) was trained on seeds **101–108** only. Eval seeds 42 / 1 / 2 / 7 / 99 / 123 were never used to fit. Converting-step labels: ROC-AUC **0.778**, PR-AUC **0.409**. Those AUCs, and the 6/6 seed bar below, were measured before the TRAI send-time correction and were not repeated after it.
 
 Three applications, measured against that pre-TRAI snapshot, 5/6-seed bar:
 
@@ -265,7 +263,7 @@ python -m eval.run_agent                                    # 41.6%
 python -m eval.run_agent --use-model --ml-app second_ask    # 43.9% on data/
 ```
 
-Full tables and the EV-floor finding: [day5-results.md](day5-results.md).
+What we claim about the model: [ml-model.md](ml-model.md).
 
 ---
 
